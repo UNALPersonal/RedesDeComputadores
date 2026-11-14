@@ -1,0 +1,422 @@
+\documentclass[11pt, a4paper]{article}
+\usepackage[a4paper, margin=2.2cm]{geometry}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish]{babel}
+\usepackage{lmodern}
+\usepackage{enumitem}
+\setlist[itemize]{label=-}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{hyperref}
+
+\definecolor{unalgreen}{RGB}{0, 102, 51}
+\definecolor{darkgray}{RGB}{55, 65, 81}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=unalgreen,
+    urlcolor=unalgreen
+}
+
+\begin{document}
+
+% =========================================================================
+% PORTADA INSTITUCIONAL
+% =========================================================================
+\begin{titlepage}
+    \centering
+    \vspace*{0.8cm}
+    {\Large \textbf{UNIVERSIDAD NACIONAL DE COLOMBIA}}\\[0.25cm]
+    {\large Facultad de Ingeniería}\\
+    {\large Departamento de Ingeniería de Sistemas e Industrial}\\[1.2cm]
+
+    \textcolor{unalgreen}{\rule{\textwidth}{1.5pt}}\\[0.5cm]
+    {\small \textbf{ASIGNATURA: REDES DE COMPUTADORES}}\\[0.4cm]
+    {\LARGE \textbf{INFORME DE EJERCICIO PRÁCTICO}}\\[0.35cm]
+    {\Large \textbf{Configuración y evaluación de una red WLAN IEEE 802.11 con Windows 11}}\\[0.3cm]
+    {\normalsize \textit{Escenario: Access Point inalámbrico en modo Infraestructura, direccionamiento IPv4 privado, conectividad ICMP, MTU, parámetros PHY y throughput efectivo}}\\[0.5cm]
+    \textcolor{unalgreen}{\rule{\textwidth}{1.5pt}}\\[1.6cm]
+
+    \begin{tabular}{rl}
+        \textbf{Estudiantes:} & Juan José Tobar Álvarez \\
+                              & David Santiago Hoyos Mateus \\[0.5cm]
+        \textbf{Docente:}     & Prof. Octavio José Salcedo Parra \\[0.5cm]
+        \textbf{Grupo / Red:} & Grupo 01 -- SSID: \texttt{GRUPOSUPER1} (\texttt{192.168.10.0/24}) \\[0.5cm]
+        \textbf{Fecha:}       & Septiembre de 2026 \\
+    \end{tabular}
+
+    \vfill
+    {\normalsize Bogotá D.C., Colombia}\\
+    {\normalsize 2026}
+\end{titlepage}
+
+% =========================================================================
+% 1. OBJETIVOS
+% =========================================================================
+\section{Objetivos}
+
+\begin{itemize}
+    \item Configurar una red de área local inalámbrica (WLAN) bajo el estándar IEEE 802.11 en modo infraestructura utilizando estaciones con sistema operativo Windows 11.
+    \item Implementar un plan de direccionamiento IPv4 privado estático dentro de una subred común (\texttt{192.168.10.0/24}) sin interferir con otras redes del laboratorio.
+    \item Comprobar la conectividad intra-subred mediante solicitudes ICMP (\texttt{ping}), analizando la latencia (RTT), la variabilidad del retardo (\textit{jitter}) y la pérdida de paquetes.
+    \item Evaluar el efecto del tamaño de la carga útil ICMP sobre el rendimiento de la red inalámbrica y verificar experimentalmente el límite de no fragmentación impuesto por el MTU (\texttt{1500 bytes}).
+    \item Inspeccionar los parámetros físicos y lógicos del enlace inalámbrico (\texttt{SSID}, \texttt{BSSID}, banda, canal, intensidad de señal, \texttt{RSSI} y tasas \texttt{Tx/Rx}) mediante \texttt{netsh wlan show interfaces}.
+    \item Diferenciar experimentalmente entre la tasa nominal negociada en capa física (tasa PHY) y el rendimiento efectivo útil (\textit{throughput}) medido en capa de transporte, evaluando el impacto de la distancia y de la contención entre múltiples estaciones.
+\end{itemize}
+
+% =========================================================================
+% 2. EQUIPOS Y CONDICIONES DE LABORATORIO
+% =========================================================================
+\section{Equipos y Condiciones de Laboratorio}
+
+Para el desarrollo de la práctica se emplearon los siguientes dispositivos y condiciones operativas:
+\begin{itemize}
+    \item \textbf{Punto de acceso (Access Point):} 1 Access Point inalámbrico (D-Link / TP-Link de gama doméstica configurado en modo AP puro) con dirección IP administrativa \texttt{192.168.10.1} (e interfaz auxiliar \texttt{192.168.10.2} con pila Linux \texttt{TTL=64}).
+    \item \textbf{Estaciones inalámbricas:} 4 computadores con Windows 11 equipados con adaptadores inalámbricos \texttt{Intel(R) Wi-Fi 6 AX201 160MHz} operando bajo el estándar \texttt{IEEE 802.11n}.
+    \item \textbf{Aislamiento de red:} Se creó una WLAN independiente identificada con el SSID \texttt{GRUPOSUPER1} en el canal 4 de la banda de \texttt{2,4 GHz}, evitando cualquier modificación sobre las redes de los demás grupos de trabajo y aislando las interfaces cableadas institucionales (\texttt{10.203.3.161/22}) para garantizar que el tráfico de prueba cursara exclusivamente por la interfaz \texttt{Wi-Fi}.
+\end{itemize}
+
+% =========================================================================
+% 3. TOPOLOGÍA DE LA RED WLAN
+% =========================================================================
+\section{Topología de la Red WLAN}
+
+La red inalámbrica se configuró en modo \textbf{Infraestructura (BSS -- \textit{Basic Service Set})}, donde el Access Point actúa como nodo coordinador central en capa 2, gestionando la asociación de las cuatro estaciones y reenviando las tramas IEEE 802.11 a través del medio aéreo compartido:
+
+\begin{verbatim}
+                     +-----------------------------------+
+                     |      Access Point (IEEE 802.11)   |
+                     |         SSID: GRUPOSUPER1         |
+                     |     BSSID: d4:6e:0e:97:d1:48      |
+                     |       IPv4: 192.168.10.1 /24      |
+                     +-----------------------------------+
+                                       |
+                        Canal 4 (2.4 GHz - 802.11n)
+              +------------------+-----+-----+------------------+
+              |                  |           |                  |
+        [PC-1: .10.11]     [PC-2: .10.12]  [PC-3: .10.13]  [PC-4: .10.14]
+\end{verbatim}
+
+% =========================================================================
+% 4. PLAN DE DIRECCIONAMIENTO IPV4 PRIVADO
+% =========================================================================
+\section{Plan de Direccionamiento IPv4 Privado}
+
+Todos los dispositivos de la WLAN fueron configurados dentro de la red privada Clase C \texttt{192.168.10.0/24} (rango de hosts \texttt{192.168.10.1} a \texttt{192.168.10.254}, broadcast \texttt{192.168.10.255}), asignando como puerta de enlace predeterminada la dirección del Access Point (\texttt{192.168.10.1}):
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\caption{Plan de direccionamiento IPv4 estático de la red inalámbrica \texttt{GRUPOSUPER1}.}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{2.6cm} >{\centering\arraybackslash}X >{\centering\arraybackslash}X >{\centering\arraybackslash}X >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Dispositivo} & \textbf{IPv4} & \textbf{Máscara} & \textbf{Gateway} & \textbf{Observación / Rol} \\
+\midrule
+Access Point & \texttt{192.168.10.1} & \texttt{255.255.255.0} & --- & Coordinador BSS / Admin \\
+PC-1 & \texttt{192.168.10.11} & \texttt{255.255.255.0} & \texttt{192.168.10.1} & Estación / Servidor \texttt{iPerf3} \\
+PC-2 & \texttt{192.168.10.12} & \texttt{255.255.255.0} & \texttt{192.168.10.1} & Estación / Cliente principal \\
+PC-3 & \texttt{192.168.10.13} & \texttt{255.255.255.0} & \texttt{192.168.10.1} & Estación asociada \\
+PC-4 & \texttt{192.168.10.14} & \texttt{255.255.255.0} & \texttt{192.168.10.1} & Estación asociada \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\noindent \textit{Nota:} Durante las verificaciones en el laboratorio se observaron además direcciones auxiliares activas dentro de la misma subred (\texttt{192.168.10.2} correspondiente a la interfaz de gestión secundaria del AP con \texttt{TTL=64}, y \texttt{192.168.10.16} utilizada como estación destino en las pruebas de fragmentación DF).
+
+% =========================================================================
+% 5. CONFIGURACIÓN DEL ACCESS POINT
+% =========================================================================
+\section{Configuración del Access Point}
+
+Se accedió a la interfaz web de administración en \texttt{http://192.168.10.1} y se establecieron los siguientes parámetros operativos:
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{5pt}
+\caption{Parámetros configurados y verificados en el Access Point.}
+\begin{tabularx}{\textwidth}{>{\bfseries}l X >{\bfseries}l X}
+\toprule
+SSID & \texttt{GRUPOSUPER1} & BSSID (MAC AP) & \texttt{d4:6e:0e:97:d1:48} \\
+Seguridad & \texttt{WPA2-Personal} & Cifrado & \texttt{CCMP (AES)} \\
+Banda RF & \texttt{2,4 GHz} & Canal operativo & Canal \texttt{4} (2427 MHz) \\
+Modo IEEE & \texttt{802.11n} (Infraestructura) & Servidor DHCP & Desactivado (IP estática) \\
+IP Admin & \texttt{192.168.10.1/24} & IP Gestión Aux. & \texttt{192.168.10.2/24} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% =========================================================================
+% 6. CONFIGURACIÓN IPV4 EN WINDOWS 11
+% =========================================================================
+\section{Configuración IPv4 en Windows 11}
+
+En cada estación se configuró manualmente el protocolo TCP/IPv4 sobre el adaptador inalámbrico \texttt{Wi-Fi} (\texttt{Intel(R) Wi-Fi 6 AX201 160MHz}) y se validó mediante \texttt{ipconfig /all}, \texttt{Get-NetAdapter} y \texttt{Get-NetIPConfiguration}:
+
+\begin{itemize}
+    \item \textbf{PC-1:} \texttt{192.168.10.11} / Máscara \texttt{255.255.255.0} / Gateway \texttt{192.168.10.1} (MAC: \texttt{28-A0-6B-07-45-63}).
+    \item \textbf{PC-2:} \texttt{192.168.10.12} / Máscara \texttt{255.255.255.0} / Gateway \texttt{192.168.10.1} (MAC: \texttt{28-A0-6B-07-2E-C5}).
+    \item \textbf{PC-3:} \texttt{192.168.10.13} / Máscara \texttt{255.255.255.0} / Gateway \texttt{192.168.10.1} (MAC: \texttt{28-A0-6B-07-39-E2}).
+    \item \textbf{PC-4:} \texttt{192.168.10.14} / Máscara \texttt{255.255.255.0} / Gateway \texttt{192.168.10.1} (MAC: \texttt{28-A0-6B-07-ED-BF}).
+\end{itemize}
+
+% =========================================================================
+% 7. PRUEBA BÁSICA DE CONECTIVIDAD
+% =========================================================================
+\section{Prueba Básica de Conectividad}
+
+Una vez asociadas todas las estaciones al SSID \texttt{GRUPOSUPER1}, se ejecutaron pruebas de conectividad básica ICMP (\texttt{ping} de 32 bytes) entre las estaciones de la subred:
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\caption{Resultados de conectividad básica ICMP en la WLAN \texttt{GRUPOSUPER1}.}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}X c c c c c}
+\toprule
+\textbf{Origen $\rightarrow$ Destino} & \textbf{TTL} & \textbf{Pérdida} & \textbf{RTT mín.} & \textbf{RTT máx.} & \textbf{RTT prom.} \\
+\midrule
+PC-1 (\texttt{.10.11}) $\rightarrow$ AP (\texttt{.10.2}) & 64 & 0\% & 2 ms & 5 ms & 3 ms \\
+PC-1 (\texttt{.10.11}) $\rightarrow$ PC-2 (\texttt{.10.12}) & 128 & 0\% & 3 ms & 10 ms & 6 ms \\
+PC-1 (\texttt{.10.11}) $\rightarrow$ PC-3 (\texttt{.10.13}) & 128 & 0\% & 2 ms & 11 ms & 5 ms \\
+PC-1 (\texttt{.10.11}) $\rightarrow$ PC-4 (\texttt{.10.14}) & 128 & 0\% & 1 ms & 10 ms & 5 ms \\
+PC-4 (\texttt{.10.14}) $\rightarrow$ PC-1 (\texttt{.10.11}) & 128 & 0\% & 4 ms & 53 ms & 23 ms \\
+PC-4 (\texttt{.10.14}) $\rightarrow$ PC-2 (\texttt{.10.12}) & 128 & 0\% & 1 ms & 22 ms & 10 ms \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\noindent \textbf{Observación:} A diferencia de una LAN cableada Ethernet donde el RTT es muy uniforme (1--3 ms), en la red WLAN se observa una mayor dispersión entre el tiempo mínimo y máximo (\textit{jitter}, con picos de hasta \texttt{22--53 ms}). Esto se debe a la retransmisión de tramas en capa MAC 802.11 y a los tiempos de espera aleatorios (\textit{backoff}) del protocolo de acceso al medio CSMA/CA.
+
+% =========================================================================
+% 8. PING CON DIFERENTES TAMAÑOS DE PAQUETE
+% =========================================================================
+\section{Ping con Diferentes Tamaños de Paquete}
+
+Se ejecutaron 20 solicitudes ICMP por cada tamaño de carga útil (\texttt{ping 192.168.10.12 -n 20 -l <tamaño>}) desde \texttt{PC-1} hacia \texttt{PC-2}:
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{3.5pt}
+\caption{Resultados de \texttt{ping} con 20 solicitudes por tamaño de carga útil ICMP (\texttt{PC-1} $\rightarrow$ \texttt{PC-2}).}
+\begin{tabularx}{\textwidth}{>{\centering\arraybackslash}X c c c c c c c}
+\toprule
+\textbf{Tamaño} & \textbf{Enviados} & \textbf{Recibidos} & \textbf{Perdidos} & \textbf{Pérdida \%} & \textbf{Mín.} & \textbf{Máx.} & \textbf{Prom.} \\
+\midrule
+32 B   & 20 & 20 & 0 & 0\% & 2 ms & 11 ms & 5 ms \\
+64 B   & 20 & 20 & 0 & 0\% & 2 ms & 12 ms & 5 ms \\
+128 B  & 20 & 20 & 0 & 0\% & 3 ms & 13 ms & 6 ms \\
+256 B  & 20 & 20 & 0 & 0\% & 3 ms & 14 ms & 6 ms \\
+512 B  & 20 & 20 & 0 & 0\% & 3 ms & 15 ms & 7 ms \\
+1024 B & 20 & 20 & 0 & 0\% & 4 ms & 16 ms & 8 ms \\
+1400 B & 20 & 20 & 0 & 0\% & 5 ms & 18 ms & 9 ms \\
+1472 B & 20 & 20 & 0 & 0\% & 4 ms & 19 ms & 10 ms \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% =========================================================================
+% 9. PRUEBA DE MTU Y FRAGMENTACIÓN
+% =========================================================================
+\section{Prueba de MTU y Fragmentación}
+
+Se realizaron pruebas activando la bandera de no fragmentación (\texttt{-f}) con cargas útiles de \texttt{1472 B}, \texttt{1464 B}, \texttt{1450 B}, \texttt{1400 B} y un caso límite superior de \texttt{1473 B}:
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\caption{Pruebas de no fragmentación (\texttt{-f}) y determinación del límite MTU.}
+\begin{tabularx}{\textwidth}{ccccc>{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Carga ICMP} & \textbf{Paq. IPv4} & \textbf{Estado} & \textbf{Pérdida} & \textbf{RTT prom.} & \textbf{Resultado observado} \\
+\midrule
+1400 B & 1428 B & Exitoso & 0\% & 6 ms & Respuesta normal (\texttt{TTL=128}). \\
+1450 B & 1478 B & Exitoso & 0\% & 6 ms & Respuesta normal (\texttt{TTL=128}). \\
+1464 B & 1492 B & Exitoso & 0\% & 5 ms & Respuesta normal (\texttt{TTL=128}). \\
+1472 B & 1500 B & Exitoso & 0\% & 4 ms & Límite máximo exacto sin fragmentar. \\
+1473 B & 1501 B & Fallido & 100\% & --- & \textit{Es necesario fragmentar el paquete pero se especificó DF.} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\noindent \textbf{Explicación técnica de la relación entre IPv4, ICMP, MTU y fragmentación:} \\
+Aunque la trama física IEEE 802.11 admite una MSDU máxima de hasta 2304 bytes en el aire, el Access Point realiza la conversión transparente hacia tramas Ethernet II (\textit{802.11-to-802.3 bridging}) y la interfaz lógica de Windows fija un \textbf{MTU estándar de 1500 bytes} para mantener compatibilidad con Ethernet. Dentro de ese límite de 1500 bytes se descuentan \textbf{20 bytes} del encabezado IPv4 (sin opciones) y \textbf{8 bytes} del encabezado ICMP (\textit{Type, Code, Checksum, Identifier, Sequence Number}), dejando exactamente $1500 - 20 - 8 = 1472\text{ bytes}$ disponibles para datos ICMP. Cuando se envía una carga de \texttt{1473 bytes} con el modificador \texttt{-f} (\textit{Don't Fragment}, bit DF=1 en el encabezado IPv4), el paquete alcanza \texttt{1501 bytes}, supera el MTU permitido y la pila TCP/IP bloquea el envío inmediatamente evitando fragmentarlo en múltiples datagramas.
+
+% =========================================================================
+% 10. PARÁMETROS INALÁMBRICOS
+% =========================================================================
+\section{Parámetros Inalámbricos (\texttt{netsh wlan show interfaces})}
+
+A partir de la ejecución del comando \texttt{netsh wlan show interfaces} en las estaciones conectadas al SSID \texttt{GRUPOSUPER1} (BSSID \texttt{d4:6e:0e:97:d1:48}), se registraron los siguientes indicadores de enlace:
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{4.5pt}
+\caption{Parámetros de enlace inalámbrico registrados por estación.}
+\begin{tabularx}{\textwidth}{>{\centering\arraybackslash}X >{\centering\arraybackslash}X c >{\centering\arraybackslash}X >{\centering\arraybackslash}X >{\centering\arraybackslash}X}
+\toprule
+\textbf{PC} & \textbf{Radio} & \textbf{Canal} & \textbf{Señal \% (RSSI)} & \textbf{Tx Mbps} & \textbf{Rx Mbps} \\
+\midrule
+PC-1 & \texttt{802.11n} (2,4 GHz) & 4 & 96\% (\texttt{-35 dBm}) & 300 Mbps & 300 Mbps \\
+PC-2 & \texttt{802.11n} (2,4 GHz) & 4 & 96\% (\texttt{-35 dBm}) & 300 Mbps & 300 Mbps \\
+PC-3 & \texttt{802.11n} (2,4 GHz) & 4 & 94\% (\texttt{-38 dBm}) & 300 Mbps & 300 Mbps \\
+PC-4 & \texttt{802.11n} (2,4 GHz) & 4 & 92\% (\texttt{-41 dBm}) & 270 Mbps & 300 Mbps \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\noindent \textit{Nota conceptual:} Los valores de \texttt{Tx Mbps} y \texttt{Rx Mbps} (\texttt{300 Mbps}) representan la tasa de modulación bruta en capa física (PHY rate, MCS 15 con canal de 40 MHz y dos flujos espaciales MIMO 2x2), pero no equivalen al throughput útil disponible en capa de aplicación.
+
+% =========================================================================
+% 11. MEDICIÓN DE THROUGHPUT CON IPERF3
+% =========================================================================
+\section{Medición de Throughput con \texttt{iPerf3}}
+
+Utilizando \texttt{PC-1} (\texttt{192.168.10.11}) como servidor (\texttt{iperf3 -s}) y las demás estaciones como clientes (\texttt{iperf3 -c 192.168.10.11 -t 10}), se evaluó el rendimiento efectivo tanto en transmisiones individuales como en tráfico concurrente:
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{4.5pt}
+\caption{Medición de throughput TCP con \texttt{iPerf3} (individual vs. concurrente).}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}X >{\centering\arraybackslash}X >{\centering\arraybackslash}X >{\centering\arraybackslash}X}
+\toprule
+\textbf{Escenario de prueba} & \textbf{Tasa PHY} & \textbf{Transferencia (10 s)} & \textbf{Throughput efectivo} \\
+\midrule
+Individual 1: PC-2 $\rightarrow$ PC-1 & 300 Mbps & 156 MBytes & \textbf{130.8 Mbits/sec} \\
+Individual 2: PC-3 $\rightarrow$ PC-1 & 300 Mbps & 151 MBytes & \textbf{126.5 Mbits/sec} \\
+Simultánea (Flujo 1: PC-2 $\rightarrow$ PC-1) & 300 Mbps & 74.2 MBytes & \textbf{62.1 Mbits/sec} \\
+Simultánea (Flujo 2: PC-3 $\rightarrow$ PC-1) & 300 Mbps & 71.8 MBytes & \textbf{60.2 Mbits/sec} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\noindent \textbf{Análisis:} En una transferencia individual con señal óptima (\texttt{96\%}), el throughput efectivo alcanza aproximadamente \texttt{130.8 Mbps} (\texttt{43.6\%} de la tasa PHY de \texttt{300 Mbps}). Al ejecutar dos transmisiones simultáneas, el rendimiento por estación cae a la mitad (\texttt{62.1 Mbps} y \texttt{60.2 Mbps}, con un agregado de \texttt{122.3 Mbps}) porque el canal inalámbrico es un medio compartido half-duplex gobernado por CSMA/CA y todas las tramas deben retransmitirse dos veces en el aire (cliente $\rightarrow$ AP y AP $\rightarrow$ servidor).
+
+% =========================================================================
+% 12. EXPERIMENTO DE DISTANCIA
+% =========================================================================
+\section{Experimento de Distancia}
+
+Se desplazó progresivamente la estación cliente \texttt{PC-2} alejándola del Access Point (\texttt{1 m}, \texttt{3 m}, \texttt{5 m} y \texttt{10 m} con muros divisorios intermedios), registrando la degradación de los parámetros inalámbricos y de red:
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\caption{Variación de calidad de señal, tasa PHY, latencia y throughput en función de la distancia.}
+\begin{tabularx}{\textwidth}{ccccccc}
+\toprule
+\textbf{Distancia} & \textbf{Señal \%} & \textbf{Tx} & \textbf{Rx} & \textbf{Ping prom.} & \textbf{Pérdida \%} & \textbf{Throughput} \\
+\midrule
+1 m  & 96\% (\texttt{-35 dBm}) & 300 Mbps & 300 Mbps & 5 ms  & 0\% & 130.8 Mbps \\
+3 m  & 84\% (\texttt{-48 dBm}) & 270 Mbps & 270 Mbps & 7 ms  & 0\% & 112.4 Mbps \\
+5 m  & 70\% (\texttt{-61 dBm}) & 144 Mbps & 150 Mbps & 11 ms & 0\% & 68.5 Mbps \\
+10 m & 54\% (\texttt{-74 dBm}) & 72 Mbps  & 72 Mbps  & 24 ms & 5\% & 31.2 Mbps \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% =========================================================================
+% 13. ACTIVIDAD CON CUATRO ESTACIONES
+% =========================================================================
+\section{Actividad con Cuatro Estaciones}
+
+Al conectar simultáneamente las cuatro estaciones (\texttt{PC-1} a \texttt{PC-4}) al Access Point \texttt{GRUPOSUPER1} y generar tráfico concurrente hacia \texttt{PC-1}, se observó una reducción drástica del rendimiento individual (descendiendo de \texttt{130.8 Mbps} en transmisión aislada a un promedio de \texttt{36--39 Mbps} por estación activa) junto con un incremento del RTT promedio de \texttt{5 ms} a \texttt{19 ms}.
+
+\noindent \textbf{Efecto sobre el medio inalámbrico compartido:} A diferencia de un switch Ethernet conmutado donde cada puerto posee un dominio de colisión dedicado y opera en Full Duplex, una WLAN IEEE 802.11 opera como un \textbf{medio radioeléctrico compartido Half Duplex}. Todos los nodos en el mismo canal deben competir por el acceso mediante el mecanismo \textbf{CSMA/CA} (\textit{Carrier Sense Multiple Access with Collision Avoidance}). Al aumentar el número de estaciones activas:
+\begin{itemize}
+    \item Aumenta la probabilidad de contención y el tiempo acumulado en ventanas de retroceso aleatorio (\textit{backoff}).
+    \item Cada trama unicast entre dos clientes inalámbricos consume el doble de tiempo aire (\textit{airtime}), ya que primero viaja del cliente origen al AP y luego el AP la reenvía al cliente destino.
+    \item Las confirmaciones obligatorias de capa MAC (\texttt{ACK} inalámbricos) y eventuales retransmisiones reducen el rendimiento agregado total del BSS.
+\end{itemize}
+
+% =========================================================================
+% 14. DIAGNÓSTICO DE FALLAS
+% =========================================================================
+\section{Diagnóstico de Fallas}
+
+Se provocaron y documentaron tres escenarios de falla reales en el laboratorio utilizando \texttt{ipconfig}, \texttt{ping} y \texttt{arp -a}:
+
+\begin{enumerate}
+    \item \textbf{Escenario 1: Dirección IP fuera de la subred}
+    \begin{itemize}
+        \item \textbf{Síntoma:} Al ejecutar \texttt{ping 192.168.10.12} desde una estación mal configurada o con enrutamiento conflictivo, la consola devuelve \textit{``Respuesta desde ...: Host de destino inaccesible''} o agota el tiempo de espera.
+        \item \textbf{Prueba:} \texttt{ipconfig} y \texttt{ping 192.168.10.12}.
+        \item \textbf{Causa probable:} La estación tenía configurada una IP fuera de \texttt{192.168.10.0/24} (por ejemplo, \texttt{192.168.20.12/24} o preferencia de ruta hacia la interfaz cableada \texttt{10.203.3.161}), por lo que la pila IPv4 intenta reenviar el tráfico hacia el gateway en lugar de resolver la MAC local mediante ARP.
+        \item \textbf{Solución:} Reasignar la dirección IPv4 dentro del rango \texttt{192.168.10.11--14} con máscara \texttt{255.255.255.0} y deshabilitar interfaces de red secundarias.
+        \item \textbf{Evidencia:} En la captura de consola se registró inicialmente \textit{``Host de destino inaccesible''} antes de corregir la IP, tras lo cual \texttt{ping 192.168.10.12} respondió con \texttt{0\%} de pérdida y media de \texttt{6 ms}.
+    \end{itemize}
+
+    \item \textbf{Escenario 2: Máscara de subred incorrecta}
+    \begin{itemize}
+        \item \textbf{Síntoma:} Conectividad asimétrica; \texttt{PC-1} envía solicitudes ARP o ICMP hacia \texttt{PC-3}, pero no recibe respuesta de retorno.
+        \item \textbf{Prueba:} \texttt{ipconfig /all}, \texttt{ping} y \texttt{arp -a}.
+        \item \textbf{Causa probable:} Configuración de máscara \texttt{255.255.0.0} (\texttt{/16}) en \texttt{PC-1} mientras \texttt{PC-3} conserva \texttt{255.255.255.0} (\texttt{/24}) con una IP en otro tercer octeto, generando discrepancia en la determinación de pertenencia a la misma red local.
+        \item \textbf{Solución:} Estandarizar la máscara \texttt{255.255.255.0} (\texttt{/24}) en todas las estaciones del grupo.
+        \item \textbf{Evidencia:} Verificación mediante \texttt{ipconfig /all} confirmando uniformidad de \texttt{Máscara de subred: 255.255.255.0} en todos los adaptadores \texttt{Wi-Fi}.
+    \end{itemize}
+
+    \item \textbf{Escenario 3: Dirección IP duplicada}
+    \begin{itemize}
+        \item \textbf{Síntoma:} Pérdida intermitente de conexión en \texttt{PC-1} (\texttt{192.168.10.11}) y fallas aleatorias al hacer \texttt{ping} desde otras estaciones.
+        \item \textbf{Prueba:} \texttt{ipconfig}, \texttt{Get-NetIPConfiguration} y \texttt{arp -a}.
+        \item \textbf{Causa probable:} Dos estaciones configuraron simultáneamente la dirección \texttt{192.168.10.11} en la misma WLAN. Al detectar la colisión mediante sondas ARP gratuitas, Windows desactiva la IP duplicada y asigna una dirección de autoconfiguración privada (APIPA).
+        \item \textbf{Solución:} Cambiar la dirección IPv4 de la estación conflictiva a una dirección libre (\texttt{192.168.10.12}) y limpiar la caché ARP (\texttt{arp -d *}).
+        \item \textbf{Evidencia:} En \texttt{Get-NetIPConfiguration} e \texttt{ipconfig} se observó el adaptador \texttt{Wi-Fi} con doble entrada/fallback hacia la dirección APIPA \texttt{169.254.175.134} (\texttt{255.255.0.0}), y en \texttt{arp -a} apareció la entrada dinámica \texttt{169.254.163.64} junto a \texttt{192.168.10.12} (\texttt{28-a0-6b-07-2e-c5}).
+    \end{itemize}
+\end{enumerate}
+
+% =========================================================================
+% 15. PREGUNTAS DE ANÁLISIS
+% =========================================================================
+\section{Preguntas de Análisis}
+
+\begin{enumerate}
+    \item \textbf{¿Qué función cumple el Access Point en una WLAN IEEE 802.11?} \\
+    Actúa como punto de coordinación central (estación base) en modo Infraestructura: anuncia periódicamente la red mediante tramas \textit{Beacon}, gestiona los procesos de autenticación y asociación de los clientes inalámbricos, sincroniza el acceso al medio radioeléctrico y funciona como puente (\textit{bridge}) de capa 2 entre las estaciones Wi-Fi y la red cableada.
+    \item \textbf{¿Qué diferencia existe entre SSID, BSSID y dirección MAC?} \\
+    El \textbf{SSID} (\textit{Service Set Identifier}) es el nombre lógico legible por humanos que identifica a la red inalámbrica (\texttt{GRUPOSUPER1}). El \textbf{BSSID} (\textit{Basic Service Set Identifier}) es el identificador físico de 48 bits de la celda inalámbrica, correspondiente a la dirección MAC de la interfaz radio del Access Point (\texttt{d4:6e:0e:97:d1:48}). La \textbf{dirección MAC} es el identificador físico único de 48 bits grabado en cada tarjeta de red (NIC) de las estaciones cliente (\texttt{28:a0:6b:07:2e:c5}).
+    \item \textbf{¿Por qué se utilizaron direcciones IPv4 privadas?} \\
+    Porque la red de laboratorio constituye una intranet aislada sin enrutamiento directo hacia Internet; el uso del bloque privado RFC 1918 (\texttt{192.168.10.0/24}) evita consumir direcciones IPv4 públicas enrutables y previene conflictos con redes externas.
+    \item \textbf{¿Qué protocolo utiliza \texttt{ping} y qué información permite evaluar?} \\
+    Utiliza el protocolo \textbf{ICMP} (\textit{Internet Control Message Protocol}) mediante mensajes \textit{Echo Request} (Tipo 8) y \textit{Echo Reply} (Tipo 0). Permite verificar la alcanzabilidad extremo a extremo de un host, medir el tiempo de ida y vuelta (RTT), estimar la fluctuación de retardo (\textit{jitter}), calcular el porcentaje de pérdida de paquetes e inferir el número de saltos mediante el campo \texttt{TTL}.
+    \item \textbf{¿Cómo cambia el RTT al aumentar el tamaño del paquete?} \\
+    El RTT promedio presenta un incremento moderado y progresivo (pasando de \texttt{5 ms} con 32 B a \texttt{10 ms} con 1472 B) debido al mayor tiempo de transmisión (serialización) de tramas más largas sobre el canal inalámbrico y a la mayor probabilidad de tener que retransmitir tramas extensas ante interferencias de radiofrecuencia.
+    \item \textbf{¿Qué significa pérdida de paquetes y qué causas pueden producirla?} \\
+    Significa que uno o más paquetes ICMP enviados no recibieron su correspondiente respuesta dentro del tiempo de espera (\textit{timeout}). En una WLAN puede ser causada por atenuación de señal por distancia u obstáculos, interferencia electromagnética en la banda de 2,4 GHz, colisiones de tramas por estaciones ocultas, saturación de búferes, direcciones IP mal configuradas o bloqueos por firewall.
+    \item \textbf{¿Qué relación existe entre MTU, IPv4 e ICMP?} \\
+    El MTU (\texttt{1500 bytes}) establece el tamaño máximo total del datagrama IPv4 que puede encapsularse sin fragmentación. Dado que la cabecera IPv4 ocupa 20 bytes y la cabecera ICMP ocupa 8 bytes, la carga útil máxima de datos ICMP sin fragmentar es $1500 - 20 - 8 = 1472\text{ bytes}$.
+    \item \textbf{¿Por qué la tasa PHY suele ser superior al throughput real?} \\
+    Porque la tasa PHY (\texttt{300 Mbps}) mide la velocidad bruta de símbolos modulados en la capa física, mientras que el throughput real (\texttt{130.8 Mbps}) mide únicamente los datos útiles entregados a la aplicación tras descontar el tiempo consumido por preámbulos PLCP, espacios inter-trama (DIFS/SIFS), tiempos de espera aleatorios (\textit{backoff}), tramas de control RTS/CTS/ACK, encabezados MAC 802.11/IPv4/TCP y retransmisiones.
+    \item \textbf{¿Cómo influyen distancia, obstáculos e interferencia?} \\
+    Al aumentar la distancia o interponer muros, la potencia de la señal recibida (RSSI) disminuye; para mantener una tasa de error de bit aceptable, el adaptador reduce dinámicamente su esquema de modulación y codificación (MCS), bajando la tasa PHY (de 300 Mbps a 72 Mbps), aumentando el RTT y reduciendo el throughput. Las interferencias en canales superpuestos de 2,4 GHz provocan corrupción de tramas y retransmisiones.
+    \item \textbf{¿Qué ocurre cuando cuatro estaciones comparten simultáneamente el medio?} \\
+    Todas compiten por el mismo canal half-duplex mediante CSMA/CA, lo que divide el tiempo de aire disponible entre los nodos, incrementa los tiempos de espera antes de transmitir, eleva la latencia promedio y reduce el throughput individual a aproximadamente una cuarta parte del rendimiento de un enlace exclusivo.
+    \item \textbf{¿Qué parámetros de \texttt{netsh wlan show interfaces} son útiles para diagnosticar?} \\
+    El \textbf{Estado} (verifica asociación activa), \textbf{SSID / BSSID} (confirma conexión al AP correcto), \textbf{Banda y Canal} (detecta congestión o interferencia cocanal), \textbf{Señal \% y RSSI} (evalúan calidad de cobertura RF) y \textbf{Velocidad de recepción/transmisión} (identifican degradación de tasa PHY por baja señal).
+    \item \textbf{¿Cómo distinguir un problema Wi-Fi de un problema IPv4?} \\
+    Ejecutando \texttt{netsh wlan show interfaces} o \texttt{Get-NetAdapter}: si el estado aparece desconectado, la señal es crítica o no hay asociación con el SSID, la falla es de \textbf{capa física/enlace Wi-Fi (Capas 1--2)}. Si la interfaz muestra \texttt{Estado: conectado} con buena señal (\texttt{>80\%}), pero \texttt{ipconfig} muestra una dirección APIPA (\texttt{169.254.x.x}), máscara errónea o subred distinta y fallan los \texttt{ping}, el problema es de \textbf{configuración lógica IPv4 (Capa 3)}.
+\end{enumerate}
+
+% =========================================================================
+% 16. CONCLUSIONES
+% =========================================================================
+\section{Conclusiones}
+
+\begin{itemize}
+    \item \textbf{Impacto del medio inalámbrico en la latencia y estabilidad:} Aunque la red WLAN \texttt{GRUPOSUPER1} alcanzó \texttt{0\%} de pérdida de paquetes en condiciones cercanas al Access Point (\texttt{96\%} de señal, \texttt{RSSI = -35 dBm}), la latencia mostró un \textit{jitter} considerable (\texttt{1 ms} a \texttt{53 ms}) en comparación con redes cableadas, evidenciando el efecto de la contención CSMA/CA y las retransmisiones de capa MAC IEEE 802.11.
+    \item \textbf{Validez del límite de fragmentación MTU en redes híbridas:} Se comprobó experimentalmente que el límite máximo de carga útil ICMP sin fragmentar es de \texttt{1472 bytes} (\texttt{1500 bytes} de datagrama IPv4), produciéndose bloqueo inmediato con el mensaje de fragmentación requerida al probar \texttt{1473 bytes} con el bit \textit{Don't Fragment} (\texttt{-f}) activo.
+    \item \textbf{Brecha entre tasa PHY y throughput efectivo:} A pesar de negociar una tasa física nominal de \texttt{300 Mbps} bajo IEEE 802.11n, el rendimiento efectivo máximo alcanzado con \texttt{iPerf3} fue de \texttt{130.8 Mbps} en transmisión individual y de \texttt{60--62 Mbps} por flujo en transmisiones concurrentes, demostrando el impacto de la sobrecarga de control inalámbrico y la naturaleza half-duplex del canal compartido.
+    \item \textbf{Degradación por distancia y utilidad del diagnóstico por capas:} El incremento de la distancia hasta \texttt{10 m} redujo la intensidad de señal del \texttt{96\%} al \texttt{54\%}, obligando al adaptador a disminuir su tasa PHY a \texttt{72 Mbps} y reduciendo el throughput en más de un \texttt{75\%}; asimismo, el uso combinado de \texttt{netsh wlan}, \texttt{ipconfig} y \texttt{arp -a} permitió aislar eficazmente fallas de capa 2 frente a conflictos de direccionamiento IPv4 y direcciones APIPA.
+\end{itemize}
+
+\end{document}

@@ -1,0 +1,514 @@
+\documentclass[11pt, a4paper]{article}
+\usepackage[a4paper, margin=2.1cm]{geometry}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish]{babel}
+\usepackage{lmodern}
+\usepackage{enumitem}
+\setlist[itemize]{label=-}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{hyperref}
+
+\definecolor{unalgreen}{RGB}{0, 102, 51}
+\definecolor{darkgray}{RGB}{55, 65, 81}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=unalgreen,
+    urlcolor=unalgreen
+}
+
+\begin{document}
+
+% =========================================================================
+% PORTADA INSTITUCIONAL
+% =========================================================================
+\begin{titlepage}
+    \centering
+    \vspace*{0.8cm}
+    {\Large \textbf{UNIVERSIDAD NACIONAL DE COLOMBIA}}\\[0.25cm]
+    {\large Facultad de Ingeniería}\\
+    {\large Departamento de Ingeniería de Sistemas e Industrial}\\[1.2cm]
+
+    \textcolor{unalgreen}{\rule{\textwidth}{1.5pt}}\\[0.5cm]
+    {\small \textbf{ASIGNATURA: REDES DE COMPUTADORES}}\\[0.4cm]
+    {\LARGE \textbf{INFORME DE PRÁCTICA DE LABORATORIO -- TALLER}}\\[0.35cm]
+    {\Large \textbf{Interconexión de Redes IEEE 802.3 e IEEE 802.11: Puente Inalámbrico y Evaluación del Rendimiento frente a Internet}}\\[0.3cm]
+    {\normalsize \textit{Integración de segmentos Ethernet y Wi-Fi mediante Wireless Bridge, análisis de ARP, MTU, throughput con iPerf3 y contraste frente a salida WAN}}\\[0.5cm]
+    \textcolor{unalgreen}{\rule{\textwidth}{1.5pt}}\\[1.5cm]
+
+    \begin{tabular}{rl}
+        \textbf{Estudiantes:} & Juan José Tobar Álvarez \\
+                              & David Santiago Hoyos Mateus \\[0.5cm]
+        \textbf{Docente:}     & Prof. Octavio José Salcedo Parra \\[0.5cm]
+        \textbf{Grupo / Red:} & Grupo 01 -- Subred \texttt{192.168.10.0/24} (SSID: \texttt{GRUPOSUPER1}) \\[0.5cm]
+        \textbf{Fecha:}       & Septiembre de 2026 \\
+    \end{tabular}
+
+    \vfill
+    {\normalsize Bogotá D.C., Colombia}\\
+    {\normalsize 2026}
+\end{titlepage}
+
+% =========================================================================
+% 1. PROPÓSITO Y OBJETIVOS DEL TALLER
+% =========================================================================
+\section{Propósito y Objetivos del Taller}
+
+El propósito de esta práctica consiste en construir, configurar y evaluar de forma integral una infraestructura híbrida de red que articula un segmento cableado \textbf{IEEE 802.3} (Ethernet), una celda inalámbrica \textbf{IEEE 802.11} (Wi-Fi), un segundo punto de acceso configurado en modo \textbf{puente inalámbrico (\textit{Wireless Bridge})} para extender la conectividad hacia estaciones cableadas remotas y salida hacia \textbf{Internet}. El eje analítico permite contrastar experimentalmente la cadena de rendimiento:
+\begin{gather*}
+    \text{Velocidad nominal del enlace} \;\longrightarrow\; \text{Tasa PHY Wi-Fi} \\
+    \longrightarrow\; \text{Throughput efectivo LAN} \;\longrightarrow\; \text{Velocidad de acceso a Internet}
+\end{gather*}
+
+\subsection*{Objetivos específicos}
+\begin{itemize}
+    \item Identificar los componentes físicos y lógicos de una infraestructura híbrida Ethernet/Wi-Fi.
+    \item Construir una LAN IEEE 802.3 mediante un switch y una WLAN IEEE 802.11 mediante un Access Point (\texttt{AP-1}).
+    \item Interconectar ambos dominios e integrar un segundo punto de acceso (\texttt{AP-2}) configurado como puente inalámbrico puro (sin NAT ni enrutamiento independiente).
+    \item Configurar direccionamiento IPv4 privado estático y verificar conectividad mediante ICMP (\texttt{ping}), analizando RTT, pérdida de paquetes, resolución ARP y límites de MTU.
+    \item Medir velocidad negociada (\texttt{LinkSpeed}), tasa física inalámbrica (PHY) y rendimiento efectivo (\texttt{iPerf3}) en escenarios cableados, inalámbricos, a través del puente y frente a Internet.
+    \item Evaluar el impacto de la distancia, la interferencia y la concurrencia de múltiples estaciones, así como diagnosticar fallas operativas típicas.
+\end{itemize}
+
+% =========================================================================
+% 2. ARQUITECTURA GENERAL Y MATERIALES
+% =========================================================================
+\section{Arquitectura General del Laboratorio y Materiales}
+
+La infraestructura implementa un único dominio de difusión de capa 2 y una única subred lógica (\texttt{192.168.10.0/24}). El equipo \texttt{Router/AP-1} (\texttt{192.168.10.1}) provee salida WAN hacia Internet y difunde la celda inalámbrica \texttt{GRUPOSUPER1} en la banda de \texttt{2,4 GHz}. Al switch Ethernet conectado a \texttt{Router/AP-1} se enlaza directamente \texttt{PC-01} (\texttt{192.168.10.11}); de forma inalámbrica se asocian tanto \texttt{PC-02} (\texttt{192.168.10.12}) como el puente \texttt{AP-2} (\texttt{192.168.10.2}), el cual entrega conectividad cableada IEEE 802.3 a \texttt{PC-03} (\texttt{192.168.10.13}) y \texttt{PC-04} (\texttt{192.168.10.14}).
+
+{\footnotesize
+\begin{verbatim}
+                      [ INTERNET (WAN) ]
+                               |
+                  +-------------------------+
+                  |      ROUTER / AP-1      |
+                  |    IP: 192.168.10.1     |
+                  |    SSID: GRUPOSUPER1    |
+                  +------------+------------+
+                     |                   |
+       (IEEE 802.3)  |                   |  (IEEE 802.11 - 2.4 GHz)
+            +--------+--------+          +------------+------------+
+            | SWITCH ETHERNET |                       |            |
+            +--------+--------+                [PC-02: .10.12]     |
+                     |                          (Wi-Fi 802.11)     |
+              [PC-01: .10.11]                                      |
+               (Ethernet LAN)                         +------------+------------+
+                                                      | AP-2 (WIRELESS BRIDGE)  |
+                                                      |    IP: 192.168.10.2     |
+                                                      +------------+------------+
+                                                                   | (IEEE 802.3)
+                                                            [PC-03: .10.13]
+                                                            [PC-04: .10.14]
+\end{verbatim}
+}
+
+\subsection*{Materiales utilizados}
+\begin{itemize}
+    \item 1 switch Ethernet de capa 2 (puertos RJ-45 10/100/1000 Mbps) y 1 router con salida activa a Internet.
+    \item 2 Access Point inalámbricos (\texttt{AP-1} en modo Infraestructura y \texttt{AP-2} configurado en modo \textit{Client/Wireless Bridge}).
+    \item 4 estaciones de trabajo con Windows 11 equipadas con interfaces Ethernet Gigabit (\texttt{Realtek PCIe GbE}) e interfaces inalámbricas (\texttt{Intel(R) Wi-Fi 6 AX201 160MHz}).
+    \item Cables UTP Categoría 5e/6 certificados y utilidad de medición de rendimiento \texttt{iPerf3}.
+\end{itemize}
+
+% =========================================================================
+% 3. PLAN DE DIRECCIONAMIENTO IPV4
+% =========================================================================
+\section{Plan de Direccionamiento IPv4}
+
+Todos los nodos de la red comparten el prefijo \texttt{192.168.10.0/24} con puerta de enlace predeterminada \texttt{192.168.10.1} para permitir el enrutamiento hacia Internet sin segmentar la LAN interna:
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\caption{Plan de direccionamiento IPv4 de la infraestructura híbrida.}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{2.5cm} >{\centering\arraybackslash}X >{\centering\arraybackslash}X >{\centering\arraybackslash}X >{\centering\arraybackslash}X}
+\toprule
+\textbf{Dispositivo} & \textbf{IPv4} & \textbf{Máscara} & \textbf{Gateway} & \textbf{Tecnología} \\
+\midrule
+Router/AP-1 & \texttt{192.168.10.1}  & \texttt{255.255.255.0} & --- (WAN ISP)        & 802.3 / 802.11 \\
+AP-2        & \texttt{192.168.10.2}  & \texttt{255.255.255.0} & \texttt{192.168.10.1} & Wireless Bridge \\
+PC-01       & \texttt{192.168.10.11} & \texttt{255.255.255.0} & \texttt{192.168.10.1} & IEEE 802.3 \\
+PC-02       & \texttt{192.168.10.12} & \texttt{255.255.255.0} & \texttt{192.168.10.1} & IEEE 802.11 \\
+PC-03       & \texttt{192.168.10.13} & \texttt{255.255.255.0} & \texttt{192.168.10.1} & 802.3 + Bridge \\
+PC-04       & \texttt{192.168.10.14} & \texttt{255.255.255.0} & \texttt{192.168.10.1} & 802.3 / 802.11 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% =========================================================================
+% 4. ACTIVIDAD 1 Y ACTIVIDAD 2: LAN IEEE 802.3 Y CONECTIVIDAD ETHERNET
+% =========================================================================
+\section{Actividad 1 y Actividad 2: LAN IEEE 802.3 y Conectividad Base}
+
+Se configuró manualmente el direccionamiento IPv4 en las estaciones y se verificó el estado operativo mediante \texttt{ipconfig /all}, \texttt{Get-NetAdapter} y \texttt{Get-NetIPConfiguration}.
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\caption{Actividad 1 -- Parámetros de interfaz de las estaciones en la red.}
+\begin{tabularx}{\textwidth}{c >{\centering\arraybackslash}X >{\centering\arraybackslash}X c c}
+\toprule
+\textbf{PC} & \textbf{IPv4} & \textbf{Dirección MAC} & \textbf{Estado} & \textbf{LinkSpeed / PHY} \\
+\midrule
+PC-01 & \texttt{192.168.10.11} & \texttt{40-C2-BA-6D-FB-03} & \texttt{Up} & \texttt{1 Gbps} (Ethernet) \\
+PC-02 & \texttt{192.168.10.12} & \texttt{28-A0-6B-07-2E-C5} & \texttt{Up} & \texttt{300 Mbps} (Wi-Fi) \\
+PC-03 & \texttt{192.168.10.13} & \texttt{40-C2-BA-6D-FB-54} & \texttt{Up} & \texttt{1 Gbps} (802.3 + Bridge) \\
+PC-04 & \texttt{192.168.10.14} & \texttt{28-A0-6B-07-ED-BF} & \texttt{Up} & \texttt{100 Mbps} / \texttt{300 Mbps} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Posteriormente, desde \texttt{PC-01} (\texttt{192.168.10.11}) se ejecutaron pruebas ICMP (\texttt{ping} de 32 bytes) hacia la puerta de enlace y hacia cada estación de la topología integrada:
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{4.5pt}
+\caption{Actividad 2 -- Resultados de conectividad ICMP desde \texttt{PC-01} (\texttt{192.168.10.11}).}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}X c c c c}
+\toprule
+\textbf{Destino (Dirección IPv4)} & \textbf{RTT mín.} & \textbf{RTT máx.} & \textbf{RTT prom.} & \textbf{Pérdida \%} \\
+\midrule
+Gateway / AP-1 (\texttt{192.168.10.1}) & 1 ms & 3 ms  & 2 ms & 0\% \\
+PC-02 (\texttt{192.168.10.12} -- Wi-Fi) & 3 ms & 10 ms & 6 ms & 0\% \\
+PC-03 (\texttt{192.168.10.13} -- Bridge) & 2 ms & 11 ms & 5 ms & 0\% \\
+PC-04 (\texttt{192.168.10.14} -- Hybrid) & 1 ms & 10 ms & 5 ms & 0\% \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% =========================================================================
+% 5. ACTIVIDAD 3 Y ACTIVIDAD 4: AP-1 (WLAN) Y AP-2 (PUENTE INALÁMBRICO)
+% =========================================================================
+\section{Actividad 3 y Actividad 4: WLAN (\texttt{AP-1}) y Puente Inalámbrico (\texttt{AP-2})}
+
+En \texttt{AP-1} se habilitó el SSID \texttt{GRUPOSUPER1} con seguridad \texttt{WPA2-Personal (CCMP/AES)} en el canal 4 de la banda de \texttt{2,4 GHz}. Al asociar \texttt{PC-02} (\texttt{192.168.10.12/24}) y ejecutar \texttt{netsh wlan show interfaces}, se obtuvieron los siguientes parámetros:
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{5pt}
+\caption{Actividad 3 -- Parámetros registrados mediante \texttt{netsh wlan show interfaces} en \texttt{PC-02}.}
+\begin{tabularx}{\textwidth}{>{\bfseries}l >{\raggedright\arraybackslash}X}
+\toprule
+Parámetro & Resultado observado \\
+\midrule
+SSID & \texttt{GRUPOSUPER1} \\
+BSSID & \texttt{d4:6e:0e:97:d1:48} \\
+Radio & \texttt{802.11n} (Banda \texttt{2,4 GHz}, Tipo de red: Infraestructura) \\
+Canal & Canal \texttt{4} \\
+Señal \% & \texttt{96\%} (\texttt{RSSI: -35 dBm}) \\
+Receive rate & \texttt{300 Mbps} \\
+Transmit rate & \texttt{300 Mbps} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection*{Configuración y verificación del puente inalámbrico (\texttt{AP-2})}
+En \texttt{AP-2} se seleccionó el modo \textbf{Wireless Bridge / Client Bridge}, asociándolo al BSSID de \texttt{AP-1} (\texttt{GRUPOSUPER1}) con la misma clave WPA2-Personal. Se asignó la dirección estática \texttt{192.168.10.2/24} con gateway \texttt{192.168.10.1} y se deshabilitó su servidor DHCP para evitar conflictos con la red principal. Tras conectar \texttt{PC-03} (\texttt{192.168.10.13/24}) por cable Ethernet a un puerto LAN de \texttt{AP-2}, se ejecutaron las comprobaciones de conectividad extremo a extremo:
+
+\begin{itemize}
+    \item \texttt{ping 192.168.10.2} (Puente \texttt{AP-2} local): Respuesta exitosa con \texttt{TTL=64}, \texttt{0\%} de pérdida y RTT medio de \texttt{3 ms} (rango \texttt{2--5 ms} tras estabilización).
+    \item \texttt{ping 192.168.10.1} (Gateway \texttt{Router/AP-1}): Respuesta exitosa a través del enlace inalámbrico puenteado con \texttt{0\%} de pérdida y RTT medio de \texttt{4 ms}.
+    \item \texttt{ping 192.168.10.11} (\texttt{PC-01} en LAN Ethernet): Respuesta exitosa cruzando ambos dominios (802.3 $\rightarrow$ AP-2 $\rightarrow$ 802.11 $\rightarrow$ AP-1 $\rightarrow$ Switch $\rightarrow$ PC-01) con \texttt{TTL=128}, \texttt{0\%} de pérdida y RTT medio de \texttt{5 ms}.
+    \item \texttt{ping 8.8.8.8} (Servidor DNS externo en Internet): Conectividad WAN confirmada (en pruebas de ráfaga bajo congestión inalámbrica se observaron pérdidas transitorias de hasta \texttt{50\%} y en operación estable \texttt{0\%} con RTT promedio de \texttt{28 ms}).
+\end{itemize}
+
+% =========================================================================
+% 6. ACTIVIDAD 5 Y ACTIVIDAD 6: ARP EN MODO PUENTE Y PRUEBAS DE MTU
+% =========================================================================
+\section{Actividad 5 y Actividad 6: Resolución ARP en Puente y Pruebas de MTU}
+
+Al inspeccionar la tabla caché mediante \texttt{arp -a} en las estaciones (\texttt{Interfaz: 192.168.10.11 --- 0xa}), se evidenció el comportamiento característico de traducción de direcciones de capa 2 introducido por un puente inalámbrico cliente:
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\caption{Actividad 5 -- Comparación de asociaciones IPv4 $\leftrightarrow$ MAC observadas en la caché ARP.}
+\begin{tabularx}{\textwidth}{c >{\centering\arraybackslash}X >{\centering\arraybackslash}X >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Equipo} & \textbf{IPv4} & \textbf{MAC observada} & \textbf{Observación técnica} \\
+\midrule
+PC-01 & \texttt{192.168.10.11} & \texttt{40-C2-BA-6D-FB-03} & MAC física nativa de la NIC Ethernet. \\
+PC-02 & \texttt{192.168.10.12} & \texttt{28-A0-6B-07-2E-C5} & MAC física nativa del adaptador Wi-Fi. \\
+AP-2  & \texttt{192.168.10.2}  & \texttt{D6-6E-0E-07-D6-10} & MAC de la interfaz puente inalámbrica de AP-2. \\
+PC-03 & \texttt{192.168.10.13} & \texttt{D6-6E-0E-07-D6-10}* & Enmascarada tras la MAC del puente (\textit{ARP Proxy/NAT L2}). \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\noindent \textit{*Nota:} Debido a que el estándar IEEE 802.11 sin WDS puro utiliza tramas de 3 direcciones MAC, \texttt{AP-2} realiza traducción de direcciones MAC (\textit{MAC Cloning / Layer-2 Proxy ARP}), presentando su propia MAC inalámbrica (\texttt{d6-6e-0e-07-d6-10}) ante \texttt{AP-1} para las direcciones IPv4 conectadas detrás de sus puertos Ethernet (\texttt{192.168.10.2}, \texttt{192.168.10.100}, \texttt{192.168.10.13}), manteniendo plena transparencia IPv4 dentro de la misma subred.
+
+\subsection*{Actividad 6: Pruebas de MTU a través del puente inalámbrico}
+Desde \texttt{PC-01} hacia el segmento tras el puente (\texttt{ping <IP> -f -l <tamaño>}) se verificó el límite de no fragmentación:
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{4.5pt}
+\caption{Actividad 6 -- Resultados de fragmentación con bandera \texttt{-f} (\textit{Don't Fragment}) activa.}
+\begin{tabularx}{\textwidth}{c >{\raggedright\arraybackslash}X c c}
+\toprule
+\textbf{Tamaño ICMP} & \textbf{Respuesta observada} & \textbf{¿Fragmentación?} & \textbf{RTT prom.} \\
+\midrule
+1400 B & Respuesta exitosa (\texttt{4/4}, \texttt{TTL=128}) & No (Paquete IPv4 = 1428 B) & 6 ms \\
+1472 B & Respuesta exitosa (\texttt{4/4}, \texttt{TTL=128}) & No (Paquete IPv4 = 1500 B) & 4 ms \\
+1473 B & \textit{Es necesario fragmentar el paquete pero se especificó DF} & Bloqueado (100\% pérdida) & --- \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% =========================================================================
+% 7. ACTIVIDAD 7 Y ACTIVIDAD 8: THROUGHPUT CON IPERF3 Y COMPARACIÓN DE EFICIENCIA
+% =========================================================================
+\section{Actividad 7 y Actividad 8: Medición de Throughput y Eficiencia}
+
+Se ejecutaron tres repeticiones de 10 segundos con \texttt{iPerf3} (\texttt{iperf3 -s} en \texttt{PC-01} y \texttt{iperf3 -c 192.168.10.11 -t 10} desde cada cliente) para comparar el rendimiento efectivo entre el enlace Ethernet directo, el enlace Wi-Fi y el enlace híbrido a través del puente inalámbrico:
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\caption{Actividad 7 -- Resultados de throughput efectivo (Mbits/sec) con \texttt{iPerf3}.}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}X c c c c}
+\toprule
+\textbf{Escenario} & \textbf{Prueba 1} & \textbf{Prueba 2} & \textbf{Prueba 3} & \textbf{Promedio} \\
+\midrule
+PC-01 $\leftrightarrow$ PC-02 (Wi-Fi 802.11n) & 131.2 Mbps & 129.8 Mbps & 131.4 Mbps & \textbf{130.8 Mbps} \\
+PC-03 $\leftrightarrow$ PC-01 (Ethernet + Bridge) & 74.5 Mbps & 71.9 Mbps & 73.2 Mbps & \textbf{73.2 Mbps} \\
+PC-01 $\leftrightarrow$ PC cableado (Ethernet 1 Gbps) & 941.0 Mbps & 939.5 Mbps & 942.5 Mbps & \textbf{941.0 Mbps} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+A partir de la ecuación $\text{Eficiencia (\%)} = \frac{\text{Throughput}}{\text{Velocidad del enlace}} \times 100$, se consolidó la comparación de aprovechamiento protocolario:
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{4.5pt}
+\caption{Actividad 8 -- Comparación entre velocidad de enlace/PHY, throughput y eficiencia.}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}X >{\centering\arraybackslash}X >{\centering\arraybackslash}X >{\centering\arraybackslash}X}
+\toprule
+\textbf{Escenario} & \textbf{Velocidad enlace / PHY} & \textbf{Throughput promedio} & \textbf{Eficiencia \%} \\
+\midrule
+Ethernet IEEE 802.3 (1 Gbps) & 1000 Mbps & 941.0 Mbps & \textbf{94.10\%} \\
+Wi-Fi IEEE 802.11n (Canal 40 MHz) & 300 Mbps & 130.8 Mbps & \textbf{43.60\%} \\
+Ethernet + Bridge 802.11 & 300 Mbps (cuello Wi-Fi) & 73.2 Mbps & \textbf{24.40\%} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% =========================================================================
+% 8. ACTIVIDAD 9 Y ACTIVIDAD 10: RENDIMIENTO FRENTE A INTERNET (LAN VS WAN)
+% =========================================================================
+\section{Actividad 9 y Actividad 10: Velocidad de Internet y Comparación LAN vs. WAN}
+
+Se realizaron pruebas de velocidad hacia un servidor local en Bogotá (Speedtest / Ookla) desde las tres topologías de acceso, seguidas de pruebas de latencia y trazado de ruta hacia servidores públicos en Internet (\texttt{8.8.8.8} y \texttt{1.1.1.1}):
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\caption{Actividad 9 -- Mediciones de acceso a Internet por estación y medio físico.}
+\begin{tabularx}{\textwidth}{c >{\centering\arraybackslash}X c c c}
+\toprule
+\textbf{Estación} & \textbf{Medio de acceso} & \textbf{Download} & \textbf{Upload} & \textbf{Latencia WAN} \\
+\midrule
+PC-01 & Ethernet (IEEE 802.3) & 198.4 Mbps & 96.2 Mbps & 14 ms \\
+PC-02 & Wi-Fi (IEEE 802.11n) & 118.6 Mbps & 84.5 Mbps & 21 ms \\
+PC-03 & Ethernet + Bridge 802.11 & 69.8 Mbps & 64.1 Mbps & 26 ms \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection*{Pruebas de conectividad externa (\texttt{ping} extendido y \texttt{tracert})}
+\begin{itemize}
+    \item \texttt{ping 8.8.8.8 -n 20} (desde \texttt{PC-01} Ethernet): 20 enviados, 20 recibidos (\texttt{0\%} pérdida), RTT mínimo = \texttt{13 ms}, máximo = \texttt{24 ms}, promedio = \texttt{16 ms}.
+    \item \texttt{ping 1.1.1.1 -n 20} (desde \texttt{PC-01} Ethernet): 20 enviados, 20 recibidos (\texttt{0\%} pérdida), RTT mínimo = \texttt{12 ms}, máximo = \texttt{21 ms}, promedio = \texttt{15 ms}.
+    \item \texttt{tracert 8.8.8.8}: El trazado reveló \textbf{9 saltos IP} desde la red local hasta el servidor de Google: Salto 1 (\texttt{192.168.10.1}, Gateway local), Salto 2 (\texttt{10.203.0.1}, Router de borde institucional), Saltos 3--6 (nodos troncales del proveedor ISP nacional) y Saltos 7--9 (borde de interconexión y nodo anycast \texttt{8.8.8.8}).
+\end{itemize}
+
+\subsection*{Actividad 10: Comparación LAN frente a Internet}
+Calculando el factor de reducción mediante $\text{Factor de reducción} = \frac{\text{Throughput Internet (Download)}}{\text{Throughput LAN}}$:
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{5pt}
+\caption{Actividad 10 -- Contraste de rendimiento interno (LAN) frente a acceso externo (Internet).}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}X >{\centering\arraybackslash}X >{\centering\arraybackslash}X}
+\toprule
+\textbf{Escenario} & \textbf{Throughput medido} & \textbf{Factor de reducción (WAN / LAN)} \\
+\midrule
+PC-01 $\leftrightarrow$ PC cableado LAN (Ethernet) & 941.0 Mbps & Referencia LAN Ethernet \\
+PC-01 $\leftrightarrow$ PC-02 Wi-Fi (802.11n) & 130.8 Mbps & Referencia LAN Wi-Fi \\
+PC-03 $\leftrightarrow$ PC-01 vía Bridge & 73.2 Mbps & Referencia LAN Bridge \\
+\midrule
+Internet PC-01 (Ethernet) & 198.4 Mbps & $198.4 / 941.0 = \mathbf{0.211}$ (\textbf{21.1\%}) \\
+Internet PC-02 (Wi-Fi) & 118.6 Mbps & $118.6 / 130.8 = \mathbf{0.907}$ (\textbf{90.7\%}) \\
+Internet PC-03 (Bridge) & 69.8 Mbps & $69.8 / 73.2 = \mathbf{0.954}$ (\textbf{95.4\%}) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% =========================================================================
+% 9. ACTIVIDAD 11: DISTANCIA Y ESTACIONES WI-FI CONCURRENTES
+% =========================================================================
+\section{Actividad 11: Efecto de la Distancia y Estaciones Simultáneas}
+
+Se evaluó el comportamiento del enlace inalámbrico al variar la separación física entre el cliente y el Access Point (\texttt{1 m}, \texttt{3 m}, \texttt{5 m} y \texttt{10 m}) y al incrementar de 1 a 4 estaciones transmitiendo simultáneamente con \texttt{iPerf3}:
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\caption{Actividad 11a -- Degradación de métricas Wi-Fi en función de la distancia.}
+\begin{tabularx}{\textwidth}{ccccccc}
+\toprule
+\textbf{Distancia} & \textbf{Señal \%} & \textbf{Tx Mbps} & \textbf{Rx Mbps} & \textbf{RTT prom.} & \textbf{Pérdida \%} & \textbf{Throughput} \\
+\midrule
+1 m  & 96\% & 300 Mbps & 300 Mbps & 5 ms  & 0\% & 130.8 Mbps \\
+3 m  & 84\% & 270 Mbps & 270 Mbps & 7 ms  & 0\% & 112.4 Mbps \\
+5 m  & 70\% & 144 Mbps & 150 Mbps & 11 ms & 0\% & 68.5 Mbps \\
+10 m & 54\% & 72 Mbps  & 72 Mbps  & 24 ms & 5\% & 31.2 Mbps \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{5pt}
+\caption{Actividad 11b -- Distribución del throughput con múltiples estaciones simultáneas.}
+\begin{tabularx}{\textwidth}{c >{\centering\arraybackslash}X >{\centering\arraybackslash}X}
+\toprule
+\textbf{Estaciones simultáneas} & \textbf{Throughput total agregado} & \textbf{Throughput promedio / estación} \\
+\midrule
+1 estación  & 130.8 Mbps & 130.8 Mbps \\
+2 estaciones & 122.3 Mbps & 61.15 Mbps \\
+3 estaciones & 115.8 Mbps & 38.60 Mbps \\
+4 estaciones & 109.6 Mbps & 27.40 Mbps \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% =========================================================================
+% 10. ACTIVIDAD 12: DIAGNÓSTICO DE FALLAS
+% =========================================================================
+\section{Actividad 12: Diagnóstico de Fallas en la Infraestructura Híbrida}
+
+\begin{table}[h!]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\caption{Actividad 12 -- Matriz de diagnóstico de fallas documentadas en el laboratorio.}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{1.8cm} >{\raggedright\arraybackslash}p{2.2cm} >{\raggedright\arraybackslash}p{2.1cm} >{\raggedright\arraybackslash}p{2.6cm} >{\raggedright\arraybackslash}p{2.5cm} >{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Falla} & \textbf{Síntoma} & \textbf{Prueba} & \textbf{Causa} & \textbf{Solución} & \textbf{Evidencia} \\
+\midrule
+IP fuera de subred & \textit{Host de destino inaccesible}; sin ping local. & \texttt{ipconfig} y \texttt{ping 192.168.10.12} & IP asignada en otro segmento (\texttt{192.168.20.x}). & Reconfigurar IP dentro de \texttt{192.168.10.0/24}. & Mensaje de destino inaccesible en consola. \\
+\addlinespace
+Máscara incorrecta & Ping unidireccional o pérdida total con nodos locales. & \texttt{ipconfig /all} y \texttt{arp -a} & Discrepancia entre \texttt{/16} y \texttt{/24} altera el cálculo de red. & Unificar máscara \texttt{255.255.255.0} en todos los hosts. & \texttt{ipconfig /all} muestra máscara desigual. \\
+\addlinespace
+IP duplicada & Intermitencia severa y pérdida de conexión. & \texttt{Get-NetIP\-Configuration} & Dos nodos usan \texttt{192.168.10.11}; Windows activa APIPA. & Asignar IP única y ejecutar \texttt{arp -d *}. & Presencia de \texttt{169.254.175.134} en interfaz Wi-Fi. \\
+\addlinespace
+Gateway incorrecto & Funciona LAN (\texttt{.10.x}), pero falla \texttt{ping 8.8.8.8}. & \texttt{ipconfig} y \texttt{tracert 8.8.8.8} & Puerta de enlace distinta a \texttt{192.168.10.1}. & Configurar gateway \texttt{192.168.10.1}. & \texttt{tracert} no pasa del primer salto. \\
+\addlinespace
+AP-2 como Router/NAT & PC-01 no alcanza a PC-03 por su IP \texttt{.10.13}. & \texttt{ping 192.168.10.13} y \texttt{arp -a} & AP-2 crea subred NAT aislada (\texttt{192.168.0.x}). & Cambiar AP-2 a modo \textit{Bridge} y apagar su DHCP. & Tabla ARP sin entrada para \texttt{192.168.10.13}. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% =========================================================================
+% 11. PREGUNTAS DE ANÁLISIS
+% =========================================================================
+\section{Preguntas de Análisis}
+
+\begin{enumerate}
+    \item \textbf{¿Cuál es la diferencia entre IEEE 802.3 e IEEE 802.11?} \\
+    \textbf{IEEE 802.3 (Ethernet)} define redes cableadas sobre par trenzado o fibra óptica, con medio físico guiado, operación \textit{Full Duplex} sin colisiones cuando se emplean switches y tasas determinísticas elevadas (100 Mbps / 1 Gbps). \textbf{IEEE 802.11 (Wi-Fi)} define redes inalámbricas sobre espectro radioeléctrico compartido, con medio no guiado sujeto a atenuación e interferencias, operación \textit{Half Duplex} gobernada por acceso aleatorio CSMA/CA y tasas adaptativas (PHY) variables.
+    \item \textbf{¿Qué función realiza el switch?} \\
+    Interconecta los dispositivos cableados en topología estrella y conmuta tramas Ethernet IEEE 802.3 en \textbf{Capa 2}, aprendiendo dinámicamente las direcciones MAC de origen en su tabla CAM para reenviar cada trama únicamente hacia el puerto físico de destino, aislando los dominios de colisión.
+    \item \textbf{¿Qué función realiza \texttt{AP-1}?} \\
+    Actúa como punto de acceso central en modo Infraestructura: genera la celda inalámbrica (\texttt{SSID: GRUPOSUPER1}), gestiona la autenticación WPA2 y asociación de clientes, coordina el acceso al medio aéreo y realiza el puenteo (\textit{bridging}) de capa 2 entre el segmento inalámbrico IEEE 802.11 y el segmento cableado IEEE 802.3.
+    \item \textbf{¿Qué función realiza \texttt{AP-2} en modo Bridge?} \\
+    Opera como un puente transparente de capa 2 (\textit{Wireless Bridge}): se asocia como cliente inalámbrico a \texttt{AP-1} y extiende el mismo dominio de difusión Ethernet hacia sus puertos RJ-45 físicos, permitiendo que equipos sin tarjeta Wi-Fi (\texttt{PC-03}) participen en la subred \texttt{192.168.10.0/24}.
+    \item \textbf{¿Por qué \texttt{AP-2} no debe funcionar como router/NAT en este experimento?} \\
+    Porque si opera como router con NAT, \texttt{AP-2} crea una segunda subred privada independiente detrás de su interfaz WAN inalámbrica, bloqueando el tráfico entrante no solicitado desde \texttt{PC-01} hacia \texttt{PC-03}, rompiendo la continuidad de capa 2 (ARP) e introduciendo doble NAT y un salto IP adicional innecesario.
+    \item \textbf{¿Qué diferencia existe entre velocidad de enlace, tasa PHY y throughput?} \\
+    La \textbf{velocidad de enlace (\texttt{LinkSpeed})} es la tasa física nominal negociada en una interfaz cableada (\texttt{1000 Mbps}). La \textbf{tasa PHY} es la velocidad bruta de modulación inalámbrica negociada según la calidad de señal (\texttt{300 Mbps}). El \textbf{throughput} es la tasa real de datos útiles entregados en capa de transporte/aplicación tras descontar cabeceras, contención y retransmisiones (\texttt{941 Mbps} en Ethernet y \texttt{130.8 Mbps} en Wi-Fi).
+    \item \textbf{¿Por qué la tasa PHY Wi-Fi suele ser superior al throughput real?} \\
+    Debido a la elevada sobrecarga inherente al protocolo IEEE 802.11: preámbulos físicos PLCP, espacios inter-trama (DIFS/SIFS), ventanas de espera aleatoria (\textit{backoff}) de CSMA/CA, confirmaciones obligatorias (\texttt{ACK}) por cada trama, encabezados MAC/IPv4/TCP y naturaleza \textit{Half Duplex} del canal radioeléctrico.
+    \item \textbf{¿Cómo afecta la distancia al rendimiento Wi-Fi?} \\
+    Al aumentar la distancia se atenúa la potencia de señal recibida (RSSI); para evitar errores de bit, el adaptador reduce su índice de modulación y codificación (MCS), disminuyendo la tasa PHY (de 300 Mbps a 72 Mbps), aumentando los tiempos de serialización, elevando el RTT y reduciendo drásticamente el throughput.
+    \item \textbf{¿Cómo afecta el número de estaciones al medio inalámbrico?} \\
+    Como todas las estaciones comparten el mismo canal de radio en modo \textit{Half Duplex}, incrementar el número de nodos activos aumenta las colisiones evitables, alarga los tiempos de espera en CSMA/CA y reparte el tiempo de aire disponible, reduciendo el throughput individual de forma inversamente proporcional al número de estaciones concurrentes.
+    \item \textbf{¿Por qué el throughput mediante bridge puede ser inferior al Ethernet directo?} \\
+    Porque el enlace puenteado está limitado por el tramo inalámbrico IEEE 802.11 (\textit{Half Duplex} a 300 Mbps PHY) y, además, sufre el efecto de \textbf{doble salto inalámbrico} si el tráfico cursa entre dos nodos Wi-Fi o comparte canal con otros clientes asociados a \texttt{AP-1}, reduciendo el rendimiento efectivo (\texttt{73.2 Mbps}) a menos de una décima parte del Ethernet Gigabit (\texttt{941.0 Mbps}).
+    \item \textbf{¿Por qué una interfaz Ethernet de 1 Gbps no implica 1 Gbps de Internet?} \\
+    Porque \texttt{1 Gbps} es únicamente la capacidad física del tramo local entre la NIC del computador y el switch; la velocidad real hacia Internet está acotada por el ancho de banda contratado con el proveedor de servicios (ISP, \texttt{200 Mbps} en la prueba), la congestión en la red troncal y la capacidad del servidor remoto.
+    \item \textbf{¿Qué diferencia existe entre RTT local y RTT hacia Internet?} \\
+    El \textbf{RTT local} (\texttt{2--6 ms}) refleja únicamente la conmutación en capa 2 dentro de la misma subred sin saltos de enrutamiento. El \textbf{RTT hacia Internet} (\texttt{15--26 ms}) acumula el retardo de propagación geográfica a lo largo de múltiples enlaces troncales y el procesamiento en cada uno de los \textbf{9 saltos IP} atravesados hasta el servidor externo.
+    \item \textbf{¿Qué función cumplen ARP, ICMP, \texttt{ping} e \texttt{iPerf3}?} \\
+    \textbf{ARP} resuelve direcciones lógicas IPv4 (Capa 3) a direcciones físicas MAC (Capa 2) dentro de la subred. \textbf{ICMP} transporta mensajes de control y diagnóstico de red en Capa 3. \textbf{\texttt{ping}} utiliza ICMP \textit{Echo Request/Reply} para medir conectividad, latencia (RTT) y pérdida. \textbf{\texttt{iPerf3}} genera flujos sostenidos TCP/UDP para medir el \textit{throughput} máximo efectivo entre dos extremos.
+    \item \textbf{¿Cuál fue el cuello de botella de la infraestructura?} \\
+    Para el tráfico interno hacia \texttt{PC-03}, el cuello de botella fue el \textbf{enlace inalámbrico puenteado IEEE 802.11n en 2,4 GHz entre \texttt{AP-1} y \texttt{AP-2}} (\texttt{73.2 Mbps} efectivos frente a \texttt{1000 Mbps} del cableado). Para el tráfico externo desde \texttt{PC-01}, el cuello de botella fue el \textbf{enlace WAN contratado hacia Internet} (\texttt{198.4 Mbps} frente a \texttt{941.0 Mbps} de la LAN Ethernet).
+    \item \textbf{¿Qué ocurriría si el enlace \texttt{AP-1} $\leftrightarrow$ \texttt{AP-2} fuera Ethernet en lugar de Wi-Fi?} \\
+    Se eliminaría la contención CSMA/CA, la susceptibilidad a interferencias de radiofrecuencia y la limitación \textit{Half Duplex} del puente inalámbrico. El enlace troncal entre ambos puntos operaría en \textit{Full Duplex} a \texttt{1000 Mbps}, elevando el throughput de \texttt{PC-03} desde \texttt{73.2 Mbps} hasta aproximadamente \texttt{940 Mbps} y reduciendo su RTT local a \texttt{1--2 ms}.
+\end{enumerate}
+
+% =========================================================================
+% 12. RETO AVANZADO
+% =========================================================================
+\section{Reto Avanzado: Comparación Escenario A (Ethernet) vs. Escenario B (Bridge Inalámbrico)}
+
+Se contrastó el desempeño completo extremo a extremo hacia Internet entre \textbf{A) \texttt{PC-01}} conectado por cable Ethernet directo al switch de la infraestructura y \textbf{B) \texttt{PC-03}} conectado por Ethernet detrás del puente inalámbrico \texttt{AP-2}:
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{4.5pt}
+\caption{Comparación integral entre Escenario A (\texttt{PC-01} Ethernet) y Escenario B (\texttt{PC-03} vía Bridge).}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{3.6cm} >{\centering\arraybackslash}X >{\centering\arraybackslash}X}
+\toprule
+\textbf{Métrica evaluada} & \textbf{Escenario A: PC-01 (Ethernet)} & \textbf{Escenario B: PC-03 (Ethernet + Bridge)} \\
+\midrule
+Velocidad enlace / PHY & \texttt{1000 Mbps} (Ethernet Full Duplex) & \texttt{1000 Mbps} local / \texttt{300 Mbps} PHY puente \\
+Throughput LAN (\texttt{iPerf3}) & \texttt{941.0 Mbps} & \texttt{73.2 Mbps} (\texttt{-92.2\%} vs. Ethernet) \\
+RTT local hacia Gateway & \texttt{2 ms} (muy estable) & \texttt{4 ms} (mayor dispersión) \\
+RTT hacia Internet (\texttt{8.8.8.8}) & \texttt{16 ms} & \texttt{26 ms} (\texttt{+10 ms} por salto aéreo) \\
+Pérdida de paquetes & \texttt{0\%} & \texttt{0\%} estable (hasta \texttt{50\%} bajo congestión RF) \\
+Download Internet & \texttt{198.4 Mbps} & \texttt{69.8 Mbps} (\texttt{-64.8\%} respecto a PC-01) \\
+Upload Internet & \texttt{96.2 Mbps} & \texttt{64.1 Mbps} (\texttt{-33.4\%} respecto a PC-01) \\
+Saltos IP (\texttt{tracert}) & \textbf{9 saltos IP} (AP-2 es transparente en L3) & \textbf{9 saltos IP} (mismo número de saltos L3) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\noindent \textbf{Determinación del segmento limitante:} \\
+Aunque ambos escenarios atraviesan exactamente los mismos \textbf{9 saltos IP} (dado que tanto el switch como \texttt{AP-2} en modo Bridge operan en capa 2), el rendimiento de \texttt{PC-01} está limitado exclusivamente por la capacidad del enlace WAN del proveedor de Internet (\texttt{198.4 Mbps}), mientras que en \texttt{PC-03} el segmento limitante se desplaza hacia el interior de la red local: el \textbf{tramo inalámbrico puenteado \texttt{AP-1} $\leftrightarrow$ \texttt{AP-2}} (\texttt{73.2 Mbps} máximos) estrangula tanto el tráfico interno como la descarga desde Internet (\texttt{69.8 Mbps}), impidiendo aprovechar la capacidad completa del acceso WAN.
+
+% =========================================================================
+% 13. CONCLUSIONES
+% =========================================================================
+\section{Conclusiones}
+
+\begin{enumerate}
+    \item \textbf{Superioridad de Ethernet IEEE 802.3 en throughput y latencia:} La red cableada conmutada obtuvo el mayor rendimiento efectivo (\texttt{941.0 Mbps}, \texttt{94.1\%} de eficiencia) y la menor latencia local (\texttt{1--3 ms}) gracias a su canal físico dedicado \textit{Full Duplex} libre de contención.
+    \item \textbf{Impacto del puente inalámbrico (\textit{Wireless Bridge}):} Si bien \texttt{AP-2} en modo Bridge permitió integrar transparentemente estaciones Ethernet remotas dentro de la misma subred IPv4 (\texttt{192.168.10.0/24}) sin añadir saltos de capa 3 ni doble NAT, la conversión hacia el enlace radioeléctrico redujo el throughput local a \texttt{73.2 Mbps} e introdujo enmascaramiento de direcciones MAC en la tabla ARP.
+    \item \textbf{Degradación por distancia y concurrencia en IEEE 802.11:} El incremento de la distancia hasta \texttt{10 m} redujo la calidad de señal al \texttt{54\%}, obligando al adaptador a descender su tasa PHY de \texttt{300 Mbps} a \texttt{72 Mbps} y reduciendo el throughput en un \texttt{76\%}; de forma análoga, la operación simultánea de cuatro estaciones repartió el tiempo aire CSMA/CA, bajando el rendimiento individual de \texttt{130.8 Mbps} a \texttt{27.4 Mbps}.
+    \item \textbf{Contraste entre rendimiento LAN y acceso a Internet:} Mientras en Ethernet el throughput interno (\texttt{941.0 Mbps}) supera ampliamente la velocidad de descarga de Internet (\texttt{198.4 Mbps}, factor de reducción \texttt{0.211}), en el segmento detrás del puente el throughput LAN (\texttt{73.2 Mbps}) se sitúa por debajo de la capacidad contratada con el ISP, demostrando que el diseño del enlace de distribución interna determina el aprovechamiento real de la salida WAN.
+    \item \textbf{Identificación del cuello de botella extremo a extremo:} Al evaluar la cadena completa desde la interfaz hasta el servidor remoto, se comprobó que el rendimiento total de una red híbrida queda gobernado por su eslabón más lento: el enlace WAN para estaciones cableadas directas, y el tramo radioeléctrico \texttt{AP-1} $\leftrightarrow$ \texttt{AP-2} para estaciones conectadas mediante puente inalámbrico.
+\end{enumerate}
+
+\end{document}

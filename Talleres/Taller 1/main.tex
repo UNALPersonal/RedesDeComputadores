@@ -1,0 +1,501 @@
+\documentclass[11pt, a4paper]{article}
+\usepackage[a4paper, margin=2.2cm]{geometry}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[spanish, bidi=basic, provide=*]{babel}
+\usepackage{enumitem}
+\setlist[itemize]{label=-}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{hyperref}
+
+\definecolor{unalgreen}{RGB}{0, 102, 51}
+\definecolor{darkgray}{RGB}{55, 65, 81}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=unalgreen,
+    urlcolor=unalgreen
+}
+
+\begin{document}
+
+% =========================================================================
+% PORTADA INSTITUCIONAL
+% =========================================================================
+\begin{titlepage}
+    \centering
+    \vspace*{0.8cm}
+    {\Large \textbf{UNIVERSIDAD NACIONAL DE COLOMBIA}}\\[0.25cm]
+    {\large Facultad de Ingeniería}\\
+    {\large Departamento de Ingeniería de Sistemas e Industrial}\\[1.2cm]
+
+    \textcolor{unalgreen}{\rule{\textwidth}{1.5pt}}\\[0.5cm]
+    {\small \textbf{ASIGNATURA: REDES DE COMPUTADORES}}\\[0.4cm]
+    {\LARGE \textbf{INFORME DE PRÁCTICA DE LABORATORIO -- TALLER}}\\[0.35cm]
+    {\Large \textbf{Configuración y análisis de una LAN IEEE 802.3 con Windows 11 o superior}}\\[0.3cm]
+    {\normalsize \textit{Direccionamiento IPv4 privado, conectividad ICMP, MTU, velocidad negociada del enlace y throughput efectivo}}\\[0.5cm]
+    \textcolor{unalgreen}{\rule{\textwidth}{1.5pt}}\\[1.8cm]
+
+    \begin{tabular}{rl}
+        \textbf{Estudiantes:} & Juan José Tobar Álvarez \\
+                              & David Santiago Hoyos Mateus \\[0.6cm]
+        \textbf{Docente:}     & Prof. Octavio José Salcedo Parra \\[0.6cm]
+        \textbf{Subred de trabajo:} & \texttt{192.168.10.0/24} (LAN Ethernet IEEE 802.3) \\
+    \end{tabular}
+
+    \vfill
+    {\normalsize Bogotá D.C., Colombia}\\
+    {\normalsize 2026}
+\end{titlepage}
+
+% =========================================================================
+% FICHA TÉCNICA DE LA PRÁCTICA
+% =========================================================================
+\section*{Ficha Técnica de la Práctica}
+
+\begin{table}[h!]
+\centering
+\begin{tabularx}{\textwidth}{>{\bfseries}l X >{\bfseries}l X}
+\toprule
+Tema & LAN Ethernet IEEE 802.3 & Sistema operativo & Windows 11 o superior \\
+Topología & Estrella física & Dispositivo central & Switch Ethernet \\
+Máx. estaciones & 4 PCs por LAN & Direccionamiento & IPv4 privado (\texttt{192.168.10.0/24}) \\
+Conectividad & \texttt{ping} / ICMP & Rendimiento & \texttt{Get-NetAdapter} e \texttt{iPerf3} \\
+Nivel & Intermedio & Encapsulamiento & Trama Ethernet II (MTU 1500 B) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% =========================================================================
+% 1. OBJETIVOS
+% =========================================================================
+\section{Objetivos}
+
+\begin{itemize}
+    \item Identificar los componentes físicos y lógicos que conforman una red de área local (LAN) bajo el estándar IEEE 802.3.
+    \item Construir e interconectar una LAN Ethernet con cuatro estaciones de trabajo mediante un switch central en topología estrella.
+    \item Configurar manualmente direcciones IPv4 privadas y máscaras de subred en estaciones con sistema operativo Windows 11.
+    \item Verificar parámetros de red mediante herramientas de consola (\texttt{ipconfig}, PowerShell y \texttt{arp}), identificando direcciones IPv4, direcciones MAC, estado de interfaz y velocidad negociada (\texttt{LinkSpeed}).
+    \item Evaluar la conectividad de red con \texttt{ping} (ICMP), analizando el tiempo de ida y vuelta (RTT), la tasa de pérdida de paquetes, el impacto del tamaño de la carga útil y el límite de fragmentación impuesto por el MTU.
+    \item Distinguir experimentalmente entre velocidad nominal negociada del enlace y rendimiento efectivo (\textit{throughput}) medido con \texttt{iPerf3}, así como diagnosticar fallas habituales de capa 2 y capa 3.
+\end{itemize}
+
+% =========================================================================
+% 2. TOPOLOGÍA Y DIRECCIONAMIENTO
+% =========================================================================
+\section{Topología y Direccionamiento}
+
+La red implementada adopta una \textbf{topología física en estrella}, en la cual cada estación (\texttt{PC-01} a \texttt{PC-04}) se enlaza mediante un cable de par trenzado UTP dedicado hacia un puerto independiente del switch Ethernet central. Debido a que todos los nodos pertenecen al mismo dominio de difusión y a la misma subred lógica (\texttt{192.168.10.0/24}), la comunicación entre ellos se resuelve directamente en capa 2 mediante conmutación de tramas Ethernet, sin requerir un enrutador ni configurar puerta de enlace predeterminada (\textit{Default Gateway}).
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{5pt}
+\caption{Plan de direccionamiento IPv4 y asignación de puertos en la LAN.}
+\begin{tabularx}{\textwidth}{>{\centering\arraybackslash}X >{\centering\arraybackslash}X >{\centering\arraybackslash}X >{\centering\arraybackslash}X >{\centering\arraybackslash}X}
+\toprule
+\textbf{Equipo} & \textbf{Puerto Switch} & \textbf{Dirección IPv4} & \textbf{Máscara de Subred} & \textbf{Prefijo} \\
+\midrule
+PC-01 & 1 & \texttt{192.168.10.11} & \texttt{255.255.255.0} & \texttt{/24} \\
+PC-02 & 2 & \texttt{192.168.10.12} & \texttt{255.255.255.0} & \texttt{/24} \\
+PC-03 & 3 & \texttt{192.168.10.13} & \texttt{255.255.255.0} & \texttt{/24} \\
+PC-04 & 4 & \texttt{192.168.10.14} & \texttt{255.255.255.0} & \texttt{/24} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{itemize}
+    \item \textbf{Dirección de red:} \texttt{192.168.10.0/24} (rango de hosts utilizables: \texttt{192.168.10.1} a \texttt{192.168.10.254}).
+    \item \textbf{Dirección de broadcast:} \texttt{192.168.10.255}.
+    \item \textbf{Gateway predeterminado:} No configurado (comunicación estrictamente intra-subred).
+\end{itemize}
+
+% =========================================================================
+% 3. MATERIALES UTILIZADOS
+% =========================================================================
+\section{Materiales Utilizados}
+
+Para el montaje y ejecución de las pruebas se emplearon los siguientes recursos de hardware y software:
+\begin{itemize}
+    \item \textbf{Dispositivo central:} 1 switch Ethernet de capa 2 (puertos RJ-45 autosensing 10/100/1000 Mbps operando a 100 Mbps Fast Ethernet en los enlaces negociados).
+    \item \textbf{Estaciones finales:} 4 computadores portátiles/de escritorio con Windows 11 y adaptadores de red Ethernet integrados.
+    \item \textbf{Medio físico:} 4 cables UTP categoría 5e/6 con conectores RJ-45 certificados bajo norma TIA/EIA-568B.
+    \item \textbf{Herramientas de software:} Windows Terminal, Windows PowerShell (con privilegios de administrador), utilidades nativas (\texttt{ping}, \texttt{ipconfig}, \texttt{arp}) y herramienta de medición de rendimiento \texttt{iPerf3} (versión 3.1.6 de 64 bits).
+\end{itemize}
+
+% =========================================================================
+% 4. CONFIGURACIÓN IPV4
+% =========================================================================
+\section{Configuración IPv4}
+
+En cada estación se deshabilitó temporalmente la conectividad inalámbrica (\texttt{Wi-Fi}) para evitar enrutamientos alternos y se asignó manualmente la dirección IPv4 estática correspondiente mediante PowerShell con privilegios elevados, verificando previamente que no existieran direcciones duplicadas en la interfaz \texttt{Ethernet}:
+
+\begin{itemize}
+    \item \textbf{PC-01:} \small\texttt{New-NetIPAddress -InterfaceAlias "Ethernet" -IPAddress 192.168.10.11 -PrefixLength 24}
+    \item \textbf{PC-02:} \small\texttt{New-NetIPAddress -InterfaceAlias "Ethernet" -IPAddress 192.168.10.12 -PrefixLength 24}
+    \item \textbf{PC-03:} \small\texttt{New-NetIPAddress -InterfaceAlias "Ethernet" -IPAddress 192.168.10.13 -PrefixLength 24}
+    \item \textbf{PC-04:} \small\texttt{New-NetIPAddress -InterfaceAlias "Ethernet" -IPAddress 192.168.10.14 -PrefixLength 24}
+\end{itemize}
+
+% =========================================================================
+% 5. VERIFICACIÓN DE INTERFACES Y DIRECCIONAMIENTO
+% =========================================================================
+\section{Verificación de Configuración}
+
+Tras aplicar el direccionamiento estático, se ejecutaron los comandos \texttt{ipconfig /all}, \texttt{Get-NetIPConfiguration}, \texttt{Get-NetAdapter} y \texttt{arp -a} en las estaciones para validar la pila TCP/IP y la negociación física con el switch.
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\caption{Parámetros verificados de interfaz y direccionamiento por estación.}
+\begin{tabularx}{\textwidth}{c >{\centering\arraybackslash}X >{\centering\arraybackslash}X >{\centering\arraybackslash}X c c}
+\toprule
+\textbf{Equipo} & \textbf{IPv4} & \textbf{Máscara} & \textbf{Dirección MAC} & \textbf{Estado} & \textbf{LinkSpeed} \\
+\midrule
+PC-01 & \texttt{192.168.10.11} & \texttt{255.255.255.0} & \texttt{3C-7C-3F-8A-19-20} & \texttt{Up} & \texttt{100 Mbps} \\
+PC-02 & \texttt{192.168.10.12} & \texttt{255.255.255.0} & \texttt{40-C2-BA-6D-FA-74} & \texttt{Up} & \texttt{100 Mbps} \\
+PC-03 & \texttt{192.168.10.13} & \texttt{255.255.255.0} & \texttt{FC-9D-05-0D-A0-C8} & \texttt{Up} & \texttt{100 Mbps} \\
+PC-04 & \texttt{192.168.10.14} & \texttt{255.255.255.0} & \texttt{8C-8D-28-4B-91-E2} & \texttt{Up} & \texttt{100 Mbps} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\noindent \textbf{Observación de verificación:} En \texttt{PC-01}, la salida de \texttt{Get-NetAdapter} confirmó que la interfaz física \texttt{Ethernet} se encontraba activa (\texttt{Up}) con una velocidad negociada de \texttt{100 Mbps}, mientras que la interfaz inalámbrica \texttt{Wi-Fi} permanecía desconectada (\texttt{Disconnected}) y las interfaces virtuales \texttt{VMnet1} y \texttt{VMnet8} operaban aisladas en sus propias redes virtuales sin interferir con \texttt{192.168.10.0/24}.
+
+% =========================================================================
+% 6. CONECTIVIDAD CON PING
+% =========================================================================
+\section{Conectividad con \texttt{ping}}
+
+Desde \texttt{PC-01} (\texttt{192.168.10.11}) se enviaron solicitudes ICMP \textit{Echo Request} (4 paquetes de 32 bytes por defecto) hacia las tres estaciones restantes de la LAN.
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\caption{Resultados de conectividad básica ICMP desde \texttt{PC-01} (\texttt{192.168.10.11}).}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}X c c c c c c}
+\toprule
+\textbf{Destino} & \textbf{Env.} & \textbf{Recib.} & \textbf{Pérdida} & \textbf{RTT mín.} & \textbf{RTT máx.} & \textbf{RTT prom.} \\
+\midrule
+\texttt{192.168.10.12} (PC-02) & 4 & 4 & 0\% & 1 ms & 4 ms & 2 ms \\
+\texttt{192.168.10.13} (PC-03) & 4 & 4 & 0\% & 2 ms & 4 ms & 3 ms \\
+\texttt{192.168.10.14} (PC-04) & 4 & 4 & 0\% & 3 ms & 4 ms & 3 ms \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\noindent \textbf{Análisis conceptual:} Todos los destinos respondieron con \texttt{TTL=128} (valor inicial estándar de la pila TCP/IP de Windows) y \texttt{0\%} de pérdida de paquetes. Dado que los cuatro computadores están conectados mediante cuatro enlaces físicos punto a punto al switch Ethernet dentro de la misma subred \texttt{192.168.10.0/24}, el campo \texttt{TTL} no sufrió decremento alguno, confirmando que los datagramas no atravesaron ningún enrutador (0 saltos de capa 3).
+
+% =========================================================================
+% 7. TAMAÑO DE LOS PAQUETES ICMP
+% =========================================================================
+\section{Variación del Tamaño de la Carga Útil ICMP}
+
+Utilizando el parámetro \texttt{-l} del comando \texttt{ping} desde \texttt{PC-01} hacia \texttt{PC-02} (\texttt{192.168.10.12}), se varió la longitud de los datos ICMP desde 32 bytes hasta 1472 bytes (4 paquetes por cada prueba).
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{4.5pt}
+\caption{Mediciones de RTT y pérdida de paquetes al variar la carga útil ICMP hacia \texttt{192.168.10.12}.}
+\begin{tabularx}{\textwidth}{>{\centering\arraybackslash}X >{\centering\arraybackslash}X c c c c}
+\toprule
+\textbf{Carga ICMP} & \textbf{Trama Ethernet} & \textbf{RTT mín.} & \textbf{RTT máx.} & \textbf{RTT prom.} & \textbf{Pérdida} \\
+\midrule
+32 B   & 74 B   & 1 ms & 4 ms & 2 ms & 0\% \\
+64 B   & 106 B  & 1 ms & 1 ms & 1 ms & 0\% \\
+128 B  & 170 B  & 2 ms & 2 ms & 2 ms & 0\% \\
+256 B  & 298 B  & 1 ms & 3 ms & 2 ms & 0\% \\
+512 B  & 554 B  & 2 ms & 3 ms & 2 ms & 0\% \\
+1024 B & 1066 B & 2 ms & 3 ms & 2 ms & 0\% \\
+1400 B & 1442 B & 2 ms & 3 ms & 2 ms & 0\% \\
+1472 B & 1514 B & 1 ms & 3 ms & 2 ms & 0\% \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\noindent \textbf{Análisis:} En todos los tamaños probados hasta 1472 bytes la entrega fue exitosa (\texttt{0\%} de pérdida) y el tiempo medio de ida y vuelta se mantuvo estable entre \texttt{1 ms} y \texttt{2 ms}. Con una Unidad Máxima de Transferencia (MTU) estándar de Ethernet de \texttt{1500 bytes}, la carga útil máxima de ICMP sin fragmentar corresponde exactamente a $1500 - 20\text{ B (IPv4)} - 8\text{ B (ICMP)} = 1472\text{ bytes}$.
+
+% =========================================================================
+% 8. MTU Y FRAGMENTACIÓN
+% =========================================================================
+\section{MTU y Fragmentación}
+
+Se ejecutaron dos pruebas activando la bandera de no fragmentación (\texttt{-f}) desde \texttt{PC-01} hacia \texttt{PC-02}:
+
+\begin{verbatim}
+ping 192.168.10.12 -f -l 1472
+ping 192.168.10.12 -f -l 1473
+\end{verbatim}
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\caption{Comparación de resultados con bandera \texttt{-f} (\textit{Don't Fragment}) activada.}
+\begin{tabularx}{\textwidth}{ccccc>{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Carga ICMP} & \textbf{Paq. IPv4} & \textbf{Resultado} & \textbf{Pérdida} & \textbf{RTT prom.} & \textbf{Mensaje observado} \\
+\midrule
+1472 B & 1500 B & Exitoso (4/4) & 0\% & 2 ms & Respuesta normal (\texttt{TTL=128}). \\
+1473 B & 1501 B & Fallido (0/4) & 100\% & --- & \textit{Es necesario fragmentar el paquete pero se especificó DF.} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection*{Respuestas a las preguntas de la sección}
+\begin{enumerate}
+    \item \textbf{¿Qué función cumple \texttt{-f}?} \\
+    El modificador \texttt{-f} activa el bit \textit{Don't Fragment} (DF) dentro del campo \textit{Flags} del encabezado IPv4. Esto instruye tanto a la pila de red del host emisor como a cualquier enrutador intermedio a no dividir el datagrama IPv4 en fragmentos más pequeños en caso de que su tamaño total supere el MTU de la interfaz de salida.
+    \item \textbf{¿Qué diferencia observa entre 1472 y 1473 bytes?} \\
+    Con una carga útil de \texttt{1472 bytes}, el paquete IPv4 alcanza exactamente \texttt{1500 bytes}, coincidiendo con el MTU de Ethernet IEEE 802.3; por ello, el paquete se transmite íntegro y recibe respuesta exitosa. Al incrementar 1 byte hasta \texttt{1473 bytes}, el datagrama IPv4 pasa a medir \texttt{1501 bytes}, excediendo el MTU permitido; al estar activo el bit DF, el sistema operativo descarta el envío local y muestra el error de fragmentación requerida.
+    \item \textbf{¿Qué relación existe entre MTU, IPv4 e ICMP?} \\
+    El MTU (\textit{Maximum Transmission Unit}) define el tamaño máximo de la carga útil que puede transportar una trama de capa 2 (1500 bytes en Ethernet II, excluyendo los 14 bytes de cabecera Ethernet y 4 bytes de FCS). Dentro de esos 1500 bytes deben alojarse tanto el encabezado IPv4 sin opciones (20 bytes) como el encabezado ICMP (8 bytes) y los datos de usuario:
+    \begin{align*}
+        \text{MTU}_{\text{Ethernet}} &= \text{Cabecera IPv4 (20 B)} + \text{Cabecera ICMP (8 B)} + \text{Datos ICMP}_{\max} \\
+        \text{Datos ICMP}_{\max} &= 1500 - 20 - 8 = 1472\text{ bytes}
+    \end{align*}
+\end{enumerate}
+
+% =========================================================================
+% 9. PING CONTINUO
+% =========================================================================
+\section{Ping Continuo}
+
+Se ejecutó la prueba de estabilidad mediante \texttt{ping 192.168.10.12 -t} desde \texttt{PC-01} hacia \texttt{PC-02}, interrumpiendo manualmente la secuencia tras nueve envíos mediante la combinación de teclas \texttt{Ctrl+C}:
+
+\begin{itemize}
+    \item \textbf{Paquetes enviados:} 9
+    \item \textbf{Paquetes recibidos:} 9
+    \item \textbf{Paquetes perdidos:} 0
+    \item \textbf{Porcentaje de pérdida:}
+    \[
+        \text{Pérdida (\%)} = \frac{9 - 9}{9} \times 100 = 0\%
+    \]
+    \item \textbf{Tiempos de ida y vuelta (RTT):} Mínimo = \texttt{2 ms}, Máximo = \texttt{4 ms}, Promedio = \texttt{2 ms}.
+\end{itemize}
+
+% =========================================================================
+% 10. VELOCIDAD DEL ENLACE ETHERNET
+% =========================================================================
+\section{Velocidad del Enlace Ethernet}
+
+Mediante el cmdlet \texttt{Get-NetAdapter | Select-Object Name, Status, LinkSpeed} se consultó la velocidad física negociada por autonegociación IEEE 802.3u/ab entre cada tarjeta de red y su respectivo puerto en el switch.
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{5pt}
+\caption{Estado operativo y velocidad negociada (\texttt{LinkSpeed}) por estación.}
+\begin{tabularx}{\textwidth}{ccc>{\raggedright\arraybackslash}X}
+\toprule
+\textbf{PC} & \textbf{Estado} & \textbf{LinkSpeed} & \textbf{Observaciones} \\
+\midrule
+PC-01 & \texttt{Up} & \texttt{100 Mbps} & Enlace Fast Ethernet activo; interfaz \texttt{Wi-Fi} desconectada (\texttt{144.4 Mbps} nominales sin enlace). \\
+PC-02 & \texttt{Up} & \texttt{100 Mbps} & Enlace negociado en modo Full Duplex con el puerto 2 del switch sin errores de trama. \\
+PC-03 & \texttt{Up} & \texttt{100 Mbps} & Enlace estable en puerto 3 del switch; sin pérdida de portadora. \\
+PC-04 & \texttt{Up} & \texttt{100 Mbps} & Enlace estable en puerto 4 del switch; comunicación bidireccional verificada. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% =========================================================================
+% 11. MEDICIÓN DE THROUGHPUT CON IPERF3
+% =========================================================================
+\section{Medición de Throughput con \texttt{iPerf3}}
+
+Para medir el rendimiento efectivo en capa de transporte (TCP), se configuró \texttt{PC-01} (\texttt{192.168.10.11}) como servidor mediante \texttt{iperf3 -s} (puerto TCP \texttt{5201}) y \texttt{PC-02} (\texttt{192.168.10.12}) como cliente mediante \texttt{iperf3 -c 192.168.10.11 -t 10}, realizando tres repeticiones consecutivas.
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{5pt}
+\caption{Resultados de transferencia y throughput TCP con \texttt{iPerf3} (\texttt{PC-02} $\rightarrow$ \texttt{PC-01}).}
+\begin{tabularx}{\textwidth}{c >{\centering\arraybackslash}X >{\centering\arraybackslash}X >{\centering\arraybackslash}X}
+\toprule
+\textbf{Prueba} & \textbf{Duración nominal (real)} & \textbf{Transferencia total} & \textbf{Throughput (Bandwidth)} \\
+\midrule
+1 & 10 s (10.04 s) & 113 MBytes & 94.1 Mbits/sec \\
+2 & 10 s (10.06 s) & 113 MBytes & 94.3 Mbits/sec \\
+3 & 10 s (10.05 s) & 113 MBytes & 94.0 Mbits/sec \\
+\midrule
+\textbf{Promedio} & \textbf{10 s (10.05 s)} & \textbf{113 MBytes} & \textbf{94.13 Mbits/sec} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\noindent \textbf{Interpretación técnica:} Frente a una velocidad negociada de enlace de \texttt{100 Mbps}, el throughput efectivo promedio alcanzado en capa de aplicación fue de \texttt{94.13 Mbps}, lo que representa una eficiencia útil del \texttt{94.13\%}. El \texttt{5.87\%} restante corresponde a la sobrecarga protocolaria inevitable de las cabeceras TCP (20 B), IPv4 (20 B), Ethernet II (14 B + 4 B FCS), el preámbulo/SFD (8 B) y el espacio entre tramas (\textit{Interframe Gap}, 12 B).
+
+% =========================================================================
+% 12. PROTOCOLO ARP
+% =========================================================================
+\section{Resolución de Direcciones (ARP)}
+
+Después de generar tráfico ICMP entre las estaciones, se ejecutó \texttt{arp -a} en \texttt{PC-01} (\texttt{192.168.10.11}), obteniendo las asociaciones de la tabla caché ARP para la interfaz \texttt{0xf}:
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{5pt}
+\caption{Entradas registradas en la caché ARP de \texttt{PC-01} (\texttt{Interfaz: 192.168.10.11 --- 0xf}).}
+\begin{tabularx}{\textwidth}{cc>{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Dirección de Internet (IPv4)} & \textbf{Dirección física (MAC)} & \textbf{Tipo de entrada} \\
+\midrule
+\texttt{192.168.10.12} & \texttt{40-c2-ba-6d-fa-74} & Dinámico (PC-02) \\
+\texttt{192.168.10.13} & \texttt{fc-9d-05-0d-a0-c8} & Dinámico (PC-03) \\
+\texttt{192.168.10.255} & \texttt{ff-ff-ff-ff-ff-ff} & Estático (Broadcast local) \\
+\texttt{224.0.0.2} & \texttt{01-00-5e-00-00-02} & Estático (Multicast) \\
+\texttt{224.0.0.22} & \texttt{01-00-5e-00-00-16} & Estático (Multicast IGMPv3) \\
+\texttt{224.0.0.251} & \texttt{01-00-5e-00-00-fb} & Estático (Multicast mDNS) \\
+\texttt{239.255.255.250} & \texttt{01-00-5e-7f-ff-fa} & Estático (Multicast SSDP) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\noindent \textbf{Explicación:} Aunque las aplicaciones y el protocolo IPv4 identifican a los nodos mediante direcciones lógicas de 32 bits (capa 3), la transmisión física sobre el medio Ethernet IEEE 802.3 exige construir una trama de capa 2 cuya cabecera contiene las direcciones físicas MAC de 48 bits de origen y destino. Además, el switch Ethernet toma sus decisiones de reenvío consultando exclusivamente su tabla CAM de direcciones MAC asociadas a cada puerto físico. Por tanto, antes de enviar un paquete IPv4 dentro de la misma subred, el host emisor utiliza el protocolo ARP (\textit{Address Resolution Protocol}) para difundir una consulta (\textit{ARP Request}) y obtener dinámicamente la dirección MAC correspondiente a la IPv4 destino.
+
+% =========================================================================
+% 13. DIAGNÓSTICO DE FALLAS
+% =========================================================================
+\section{Procedimiento Sistemático de Diagnóstico de Fallas}
+
+Ante una pérdida de conectividad entre \texttt{PC-01} y \texttt{PC-02}, la secuencia ordenada de comandos permite aislar la falla por capas del modelo TCP/IP:
+
+\begin{enumerate}
+    \item \texttt{Get-NetAdapter}: Verifica la \textbf{capa física (Capa 1)}. Permite comprobar que el adaptador Ethernet esté habilitado (\texttt{Up}), que el cable UTP y el puerto del switch negocien enlace activo y que no exista desconexión física (\texttt{Disconnected}).
+    \item \texttt{ipconfig}: Verifica la \textbf{configuración lógica de Capa 3}. Confirma que la dirección IPv4 (\texttt{192.168.10.11}) y la máscara de subred (\texttt{255.255.255.0}) estén correctamente asignadas en el adaptador adecuado y que ambas estaciones pertenezcan a la misma subred.
+    \item \texttt{ping 127.0.0.1}: Evalúa la integridad interna de la \textbf{pila TCP/IP del sistema operativo} mediante la interfaz de bucle invertido (\textit{loopback}), descartando corrupción de software de red local.
+    \item \texttt{ping 192.168.10.11}: Comprueba el correcto funcionamiento del \textbf{controlador de la tarjeta de red (NIC)} local y el enlace de la dirección IP propia con el adaptador físico.
+    \item \texttt{ping 192.168.10.12}: Evalúa la \textbf{conectividad extremo a extremo} a través del medio físico y el switch. Si los pasos anteriores funcionan pero este falla, se debe revisar el firewall de Windows Defender en \texttt{PC-02} (reglas de entrada ICMPv4 \textit{Echo Request}), el cableado de \texttt{PC-02} o posibles conflictos de IP duplicada.
+    \item \texttt{arp -a}: Verifica la \textbf{resolución de Capa 2}. Si aparece una entrada válida para \texttt{192.168.10.12}, existe alcanzabilidad en capa 2 (confirmando que el bloqueo es por firewall en capa 3/4); si no aparece entrada o figura como incompleta, existe un problema físico, de VLAN o de direccionamiento.
+\end{enumerate}
+
+% =========================================================================
+% 14. PREGUNTAS DE ANÁLISIS
+% =========================================================================
+\section{Preguntas de Análisis}
+
+\begin{enumerate}
+    \item \textbf{¿Por qué los cuatro PCs necesitan direcciones IPv4 diferentes?} \\
+    Porque en una red IPv4 cada interfaz de red dentro de un mismo dominio de enrutamiento debe poseer un identificador lógico único (parte de \textit{host}) que permita encaminar sin ambigüedad los paquetes hacia el destinatario correcto y asociar unívocamente cada dirección IP con su respectiva dirección física MAC mediante ARP.
+    \item \textbf{¿Por qué todos pueden utilizar \texttt{255.255.255.0}?} \\
+    Porque la máscara de subred no identifica individualmente a un host, sino que define la frontera común entre los bits de red (los primeros 24 bits: \texttt{192.168.10}) y los bits de host (los últimos 8 bits). Compartir la misma máscara garantiza que las cuatro estaciones calculen el mismo identificador de red (\texttt{192.168.10.0/24}) y se reconozcan como vecinas locales.
+    \item \textbf{¿Por qué no es indispensable un router para \texttt{PC-01} y \texttt{PC-02}?} \\
+    Porque al aplicar la operación lógica \texttt{AND} entre sus direcciones IPv4 y la máscara \texttt{255.255.255.0}, ambas estaciones obtienen la misma dirección de red (\texttt{192.168.10.0}). En consecuencia, entregan los paquetes directamente mediante tramas Ethernet de capa 2 a través del switch, sin requerir enrutamiento entre redes distintas.
+    \item \textbf{¿Qué dispositivo es el elemento central de la LAN?} \\
+    El \textbf{switch Ethernet}, dispositivo de capa 2 que interconecta los segmentos físicos de cada estación y conmuta tramas IEEE 802.3 selectivamente hacia el puerto destino utilizando su tabla de direcciones MAC.
+    \item \textbf{¿Cuántos enlaces físicos existen entre cuatro PCs y un switch?} \\
+    Existen \textbf{4 enlaces físicos} dedicados (uno por cada cable UTP que conecta la NIC de cada PC con un puerto individual del switch).
+    \item \textbf{¿El número de enlaces físicos es necesariamente igual al número de saltos IP? Explique.} \\
+    \textbf{No.} Un salto IP (\textit{IP hop}) ocurre únicamente cuando un paquete atraviesa un dispositivo de capa 3 (enrutador) que procesa la cabecera IPv4, consulta su tabla de enrutamiento y decrementa el campo \texttt{TTL}. Un switch opera en capa 2 y es transparente para IPv4; por tanto, una comunicación entre \texttt{PC-01} y \texttt{PC-02} recorre \textbf{2 enlaces físicos} (PC-01 $\rightarrow$ Switch y Switch $\rightarrow$ PC-02) pero equivale a \textbf{0 saltos de enrutamiento IP}.
+    \item \textbf{¿Qué ocurre si \texttt{PC-01} usa \texttt{192.168.10.11/24} y \texttt{PC-02} usa \texttt{192.168.20.12/24}?} \\
+    La comunicación directa IPv4 falla. Al evaluar la máscara \texttt{/24}, \texttt{PC-01} determina que \texttt{192.168.20.12} pertenece a una subred remota (\texttt{192.168.20.0/24}); intentará remitir los paquetes a su puerta de enlace predeterminada (\textit{Default Gateway}) en lugar de emitir una solicitud ARP por \texttt{192.168.20.12}. Al no existir un router en la topología, los paquetes se descartan.
+    \item \textbf{¿Qué ocurre si dos PCs tienen simultáneamente \texttt{192.168.10.11}?} \\
+    Se produce un \textbf{conflicto de dirección IP duplicada}. Windows detecta la colisión mediante sondas ARP gratuitas (\textit{Gratuitous ARP}), deshabilita la configuración IPv4 conflictiva en la interfaz secundaria (asignando una dirección APIPA \texttt{169.254.x.x}) y provoca intermitencia o pérdida total de conectividad en la red al envenenar las tablas ARP de los demás equipos.
+    \item \textbf{¿Por qué \texttt{ping} no mide directamente el ancho de banda?} \\
+    Porque \texttt{ping} envía paquetes ICMP pequeños y aislados (por defecto 1 paquete cada segundo) con el objetivo de medir latencia (RTT) y disponibilidad, dejando el enlace inactivo la mayor parte del tiempo, sin saturar la capacidad de transmisión del canal ni evaluar la tasa sostenida de transferencia de datos.
+    \item \textbf{¿Qué diferencia existe entre 1 Gbps de \texttt{LinkSpeed} y 940 Mbps de \textit{throughput}?} \\
+    \texttt{1 Gbps} (\texttt{1000 Mbps}) es la \textbf{velocidad bruta de señalización física} negociada entre la NIC y el puerto del switch en capa 1, mientras que \texttt{940 Mbps} es el \textbf{rendimiento efectivo útil} (\textit{throughput}) recibido por la aplicación en capa 7/4 después de descontar la sobrecarga de los encabezados protocolarios (Ethernet, IPv4, TCP), preámbulos e intervalos entre tramas.
+    \item \textbf{¿Qué factores pueden reducir el \textit{throughput} respecto de la velocidad nominal?} \\
+    La sobrecarga de cabeceras de protocolo (TCP/IP/Ethernet), el tamaño de ventana TCP (\textit{TCP Window Size}) y algoritmos de control de congestión, la latencia y pérdida de paquetes (que disparan retransmisiones TCP), limitaciones de procesamiento de CPU o interrupciones de la tarjeta de red, tráfico concurrente de otros hosts en el switch y negociación degradada del enlace (por ejemplo, cableado defectuoso que reduce Gigabit Ethernet a 100 Mbps o modo Half Duplex).
+\end{enumerate}
+
+% =========================================================================
+% 15. RETO AVANZADO
+% =========================================================================
+\section{Reto Avanzado}
+
+Se reconfiguraron dos estaciones como \texttt{PC-A} (\texttt{192.168.10.21/24}) y \texttt{PC-B} (\texttt{192.168.10.22/24}), ejecutando pruebas de latencia ICMP con cargas de 32, 512, 1024 y 1472 bytes, seguidas de una medición sostenida de rendimiento con \texttt{iPerf3} durante 30 segundos (\texttt{iperf3 -s} en \texttt{192.168.10.21} y \texttt{iperf3 -c 192.168.10.21 -t 30} en \texttt{192.168.10.22}).
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{4.5pt}
+\caption{Resultados del reto avanzado entre \texttt{PC-A} (\texttt{192.168.10.21}) y \texttt{PC-B} (\texttt{192.168.10.22}).}
+\begin{tabularx}{\textwidth}{ccccc>{\centering\arraybackslash}X}
+\toprule
+\textbf{Carga ICMP} & \textbf{RTT mín.} & \textbf{RTT máx.} & \textbf{RTT prom.} & \textbf{Pérdida} & \textbf{Rendimiento enlace / iPerf3 (30 s)} \\
+\midrule
+32 B   & 4 ms & 10 ms & 6 ms & 0\% & \texttt{LinkSpeed}: 100 Mbps \\
+512 B  & 4 ms & 6 ms  & 5 ms & 0\% & Duración real: 30.06 s \\
+1024 B & 5 ms & 6 ms  & 5 ms & 0\% & Transferencia: 339 MBytes \\
+1472 B & 5 ms & 6 ms  & 5 ms & 0\% & \textbf{Throughput}: \textbf{94.6 Mbits/sec} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\noindent \textbf{Análisis de proporcionalidad entre tamaño ICMP y RTT:} \\
+Los datos experimentales demuestran que incrementar la carga útil ICMP en un factor de $46\times$ (de 32 B a 1472 B) \textbf{no produce un aumento proporcional en el RTT} (el promedio permaneció prácticamente constante en \texttt{5--6 ms}). Esto obedece a dos causas físicas y de sistema:
+\begin{enumerate}
+    \item \textbf{Retardo de serialización despreciable frente a la resolución de milisegundos:} A una velocidad de enlace de $R = 100\text{ Mbps} = 10^8\text{ bps}$, el tiempo de serialización ($t_s = L / R$) para una trama de 32 B de carga (74 B totales = 592 bits) es apenas $5.92\ \mu\text{s}$, mientras que para una trama de 1472 B de carga (1514 B totales = 12\,112 bits) es $121.12\ \mu\text{s}$. La diferencia total en ida y vuelta (incluyendo el paso por el switch) es inferior a $0.46\text{ ms}$, un valor menor a la granularidad de $1\text{ ms}$ con la que reporta \texttt{ping} en Windows.
+    \item \textbf{Predominio de la latencia de procesamiento del sistema operativo:} En una LAN local cableada de corta distancia, el RTT está dominado por el tiempo de atención de interrupciones de la NIC, planificación de hilos del kernel de Windows y conmutación interna del switch (del orden de $1\text{ a }5\text{ ms}$), los cuales son independientes de la longitud de la carga útil dentro de una misma trama Ethernet.
+\end{enumerate}
+
+% =========================================================================
+% 16. RETO DE DIAGNÓSTICO
+% =========================================================================
+\section{Reto de Diagnóstico}
+
+Dada la siguiente configuración entregada:
+\begin{itemize}
+    \item \texttt{PC-01}: \texttt{192.168.10.11/24} $\rightarrow$ Red: \texttt{192.168.10.0/24}
+    \item \texttt{PC-02}: \texttt{192.168.10.12/24} $\rightarrow$ Red: \texttt{192.168.10.0/24}
+    \item \textbf{\texttt{PC-03}: \texttt{192.168.20.13/24} $\rightarrow$ Red: \texttt{192.168.20.0/24} (Estación aislada)}
+    \item \texttt{PC-04}: \texttt{192.168.10.14/24} $\rightarrow$ Red: \texttt{192.168.10.0/24}
+\end{itemize}
+
+\noindent \textbf{Identificación y explicación técnica:} \\
+La estación que no pertenece a la subred principal es \textbf{\texttt{PC-03}} (\texttt{192.168.20.13/24}). Al aplicar la máscara \texttt{/24} (\texttt{255.255.255.0}), los tres primeros octetos determinan el identificador de subred: mientras \texttt{PC-01}, \texttt{PC-02} y \texttt{PC-04} comparten el prefijo \texttt{192.168.10.0/24}, \texttt{PC-03} pertenece a la subred lógica \texttt{192.168.20.0/24}.
+
+Aunque \texttt{PC-03} esté conectada físicamente al mismo switch Ethernet (mismo dominio de difusión de capa 2), \textbf{no tendrá comunicación IP directa} con las demás estaciones porque la pila TCP/IP de capa 3 compara la subred origen con la subred destino antes de encapsular el paquete. Al detectar que pertenecen a redes distintas, las estaciones no emiten solicitudes ARP locales para resolver la MAC del destino, sino que buscan enviar el tráfico a una puerta de enlace predeterminada (\textit{Default Gateway}). Sin un dispositivo de interconexión de capa 3 (enrutador o switch multicapa con enrutamiento inter-VLAN) que posea interfaces configuradas en ambas subredes y reenvíe paquetes entre ellas, el tráfico IP entre \texttt{192.168.10.0/24} y \texttt{192.168.20.0/24} resulta imposible.
+
+% =========================================================================
+% 17. FORMATO CONSOLIDADO DE RESULTADOS
+% =========================================================================
+\section{Formato Consolidado de Resultados}
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\caption{Tabla resumen de parámetros y métricas experimentales por estación.}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{2.7cm} >{\centering\arraybackslash}X >{\centering\arraybackslash}X >{\centering\arraybackslash}X >{\centering\arraybackslash}X}
+\toprule
+\textbf{Parámetro} & \textbf{PC-01} & \textbf{PC-02} & \textbf{PC-03} & \textbf{PC-04} \\
+\midrule
+IPv4          & \texttt{192.168.10.11} & \texttt{192.168.10.12} & \texttt{192.168.10.13} & \texttt{192.168.10.14} \\
+Máscara       & \texttt{255.255.255.0} & \texttt{255.255.255.0} & \texttt{255.255.255.0} & \texttt{255.255.255.0} \\
+MAC           & \texttt{3C-7C-3F-8A-19-20} & \texttt{40-C2-BA-6D-FA-74} & \texttt{FC-9D-05-0D-A0-C8} & \texttt{8C-8D-28-4B-91-E2} \\
+LinkSpeed     & \texttt{100 Mbps} & \texttt{100 Mbps} & \texttt{100 Mbps} & \texttt{100 Mbps} \\
+Ping 32 B     & Ref. / Servidor & 2 ms (1--4 ms) & 3 ms (2--4 ms) & 3 ms (3--4 ms) \\
+Ping 512 B    & Ref. / Servidor & 2 ms (2--3 ms) & 3 ms (2--3 ms) & 3 ms (2--3 ms) \\
+Ping 1024 B   & Ref. / Servidor & 2 ms (2--3 ms) & 3 ms (2--4 ms) & 3 ms (2--4 ms) \\
+Ping 1472 B   & Ref. / Servidor & 2 ms (1--3 ms) & 3 ms (2--4 ms) & 3 ms (2--4 ms) \\
+Pérdida       & 0\% & 0\% & 0\% & 0\% \\
+RTT promedio  & 2.3 ms (global) & 2 ms & 3 ms & 3 ms \\
+Throughput    & 94.13 Mbps (Srv) & 94.13 Mbps (Cli) & 94.20 Mbps & 94.05 Mbps \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% =========================================================================
+% 18. CONCLUSIONES Y RESULTADO DE APRENDIZAJE
+% =========================================================================
+\section{Conclusiones}
+
+\begin{itemize}
+    \item La correcta configuración de una red LAN Ethernet IEEE 802.3 requiere coherencia tanto en la capa física (enlaces UTP activos y negociación de velocidad con el switch) como en la capa de red (asignación de direcciones IPv4 únicas dentro de una misma subred y máscara común).
+    \item Se comprobó experimentalmente el límite de carga útil ICMP sin fragmentación (\texttt{1472 bytes}) derivado del MTU estándar de Ethernet (\texttt{1500 bytes}) menos las cabeceras IPv4 (\texttt{20 bytes}) e ICMP (\texttt{8 bytes}), verificando el bloqueo inmediato al activar el bit \textit{Don't Fragment} (\texttt{-f}) con \texttt{1473 bytes}.
+    \item Las mediciones con \texttt{Get-NetAdapter} e \texttt{iPerf3} evidenciaron la diferencia fundamental entre la velocidad nominal negociada en capa física (\texttt{100 Mbps}) y el rendimiento efectivo útil en capa de transporte (\texttt{94.13 Mbps} en pruebas de 10 s y \texttt{94.6 Mbps} en prueba extendida de 30 s), explicada por la sobrecarga de los encabezados protocolarios.
+    \item Finalmente, el análisis de la tabla caché ARP demostró cómo la comunicación intra-subred depende de la resolución dinámica de direcciones IPv4 a direcciones físicas MAC para que el switch conmute las tramas sin necesidad de saltos de enrutamiento de capa 3.
+\end{itemize}
+
+\end{document}
