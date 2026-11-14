@@ -1,0 +1,287 @@
+\documentclass[conference]{IEEEtran}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-noquoting]{babel}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{cite}
+\usepackage{url}
+\usepackage[section]{placeins}
+
+\emergencystretch=1.5em
+
+\begin{document}
+
+\title{Vulnerabilidades de Red en Sistemas de Carga de Vehículos Eléctricos Gestionados por Inteligencia Artificial}
+
+\author{
+\IEEEauthorblockN{Juan José Tobar Alvarez}
+\IEEEauthorblockA{
+Programa de Ingeniería Mecatrónica\\
+Universidad Nacional de Colombia, Bogotá, Colombia\\
+Asignatura: Redes de Computadores -- Propuesta de Proyecto Semestral\\
+Correo: \texttt{jutobara@unal.edu.co}
+}
+}
+
+\maketitle
+
+\begin{abstract}
+La carga inteligente de vehículos eléctricos (EV) depende de la comunicación continua entre las estaciones de carga (EVSE) y un sistema central de gestión (CSMS) mediante el protocolo OCPP sobre WebSockets, cuyas versiones más desplegadas ofrecen mecanismos de seguridad opcionales. Esta condición permite que un atacante suplante una estación o altere la telemetría que alimenta a los algoritmos de inteligencia artificial (IA) encargados de predecir la demanda y programar los horarios de carga. El presente trabajo aborda la pregunta: \textit{¿de qué manera la vulneración del canal OCPP altera las decisiones de un agente de IA y cómo puede mitigarse mediante un filtro de validación de tráfico?} Para responderla se estructura una metodología bajo el marco estándar \textbf{CRISP-DM} articulado con fundamentos de seguridad en redes: (i) simulación en Python del tráfico cliente-servidor OCPP 1.6J sobre WebSockets con escenarios benignos y de inyección/repetición de mensajes; (ii) implementación de un agente supervisado de predicción de demanda y programación de potencia; (iii) desarrollo de un \textit{middleware} explicable de validación de esquema, rangos físicos y consistencia temporal; y (iv) evaluación comparativa en tres escenarios (operación normal, ataque sin filtro y ataque mitigado) mediante capturas en Wireshark y métricas de error de predicción, eventos de sobrecarga y desempeño de detección. El alcance se restringe a las capas de aplicación y transporte sin requerir hardware físico.
+\end{abstract}
+
+\begin{IEEEkeywords}
+OCPP, WebSocket, ciberseguridad, vehículos eléctricos, inteligencia artificial, detección de anomalías, CRISP-DM.
+\end{IEEEkeywords}
+
+\section{Introducción}
+
+La transición hacia la movilidad eléctrica exige desplegar infraestructuras de carga masivas y coordinarlas dinámicamente con la capacidad de la red eléctrica mediante esquemas de carga inteligente (\textit{smart charging}). En este ecosistema, el protocolo abierto OCPP (\textit{Open Charge Point Protocol}) se ha consolidado como el estándar de facto para la comunicación entre las estaciones de carga de vehículos eléctricos (EVSE) y los sistemas centrales de gestión (CSMS), debido a su naturaleza abierta e interoperabilidad entre fabricantes \cite{garofalaki2022}. No obstante, la versión 1.6J ---aún predominante en despliegues comerciales--- transporta cargas útiles en formato JSON sobre WebSockets con una capa de cifrado TLS opcional que frecuentemente permanece deshabilitada, mientras que solo las revisiones 2.0.1 y superiores incorporan perfiles formales de autenticación mutua y seguridad criptográfica \cite{garofalaki2022,alcaraz2023}.
+
+En años anteriores, la literatura académica se concentró en identificar, taxonómizar y modelar las amenazas sobre este protocolo. Alcaraz \textit{et al.} \cite{alcaraz2017} analizaron ataques dirigidos contra la reserva de recursos en OCPP ---incluyendo intermediarios (\textit{Man-in-the-Middle}, MitM), robo de energía y fraude de facturación--- advirtiendo que su explotación coordinada a gran escala puede comprometer la estabilidad de las microrredes eléctricas. Posteriormente, Garofalaki \textit{et al.} \cite{garofalaki2022} sistematizaron las vulnerabilidades arquitectónicas y contramedidas propuestas en el ecosistema de carga, y Alcaraz \textit{et al.} \cite{alcaraz2023} aplicaron las metodologías STRIDE y DREAD sobre OCPP 2.0.1, demostrando que persisten vectores de riesgo vinculados a la gestión de sesiones y validación de mensajes. De manera complementaria, surgieron validaciones experimentales como la de Elmo \textit{et al.} \cite{elmo2023}, quienes ejecutaron ataques de envenenamiento ARP, MitM e inyección sobre canales WebSocket en cargadores con OCPP 1.6, evidenciando la facilidad de manipulación cuando no existe cifrado de transporte.
+
+Actualmente, la investigación converge hacia la integración de técnicas de inteligencia artificial y análisis de tráfico para detectar anomalías tanto en los flujos de red como en la telemetría energética. Terruggia \textit{et al.} \cite{terruggia2025} entrenaron un autocodificador basado en redes LSTM a partir de capturas reales de una instalación de carga para identificar ataques de denegación de servicio; Jahangir \textit{et al.} \cite{jahangir2024} diseñaron detectores de aprendizaje profundo contra ataques de manipulación de carga (\textit{charge manipulation}) cuantificando su impacto económico; y Rahman \textit{et al.} \cite{rahman2026} abordaron la detección no supervisada de suplantación del estado de carga (\textit{State of Charge}, SoC) en OCPP 2.0.1. Paralelamente, continúan divulgándose fallas críticas en implementaciones reales, como la vulnerabilidad \texttt{CVE-2026-25192} \cite{nist2026}, que expone puntos finales WebSocket sin autenticación permitiendo suplantar estaciones e inyectar telemetría alterada.
+
+A pesar de estos avances, la mayoría de estudios previos se enfocan exclusivamente en la clasificación binaria del ataque o emplean arquitecturas neuronales complejas, sin medir de forma directa cuánto se degradan las decisiones de programación energética de un agente de IA ante telemetría corrupta ni qué porcentaje de estabilidad operativa se recupera al interponer un filtro ligero en capa de aplicación. Este proyecto cubre dicha brecha mediante un enfoque reproducible y acotado a un semestre académico: una simulación controlada en Python, un agente predictivo sencillo y un \textit{middleware} de validación basado en reglas físicas y estadísticas. El resto del documento se organiza así: la Sección~\ref{sec:trabajos} contrasta las metodologías de los trabajos relacionados y la Sección~\ref{sec:metodologia} desarrolla el planteamiento del problema, los fundamentos temáticos y el diseño metodológico estructurado bajo CRISP-DM.
+
+\section{Trabajos Relacionados}
+\label{sec:trabajos}
+
+Con el fin de fundamentar el diseño experimental, se revisaron ocho investigaciones indexadas representativas del estado del arte junto con el registro oficial de vulnerabilidades \cite{nist2026}. El Cuadro~\ref{tab:relacionados} sintetiza y contrasta la metodología, el alcance y las limitaciones de cada estudio. Se incluye el trabajo de Köhler \textit{et al.} \cite{kohler2023} específicamente para delimitar la frontera tecnológica del proyecto, dado que ataca la capa física mediante interferencia electromagnética y no el tráfico de transporte y aplicación.
+
+\begin{table*}[t]
+\centering
+\caption{Comparación de metodologías, alcance y limitaciones en los trabajos relacionados.}
+\label{tab:relacionados}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\textwidth}{c >{\raggedright\arraybackslash}p{4.2cm} >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}p{4.3cm}}
+\toprule
+\textbf{Ref.} & \textbf{Enfoque y Técnica Principal} & \textbf{Metodología Experimental} & \textbf{Alcance y Limitación} \\
+\midrule
+\cite{alcaraz2017} & Análisis de seguridad en protocolos de carga (OCPP 1.5/1.6). & Modelado teórico y pruebas conceptuales de ataques de MitM, robo de energía y manipulación de reservas. & Identifica riesgos sistémicos en la red eléctrica, pero no implementa defensas ni modelos de IA. \\
+\addlinespace
+\cite{garofalaki2022} & Revisión sistemática de literatura sobre ciberseguridad en EVSE. & Clasificación taxonómica de amenazas por capas y revisión comparativa de contramedidas criptográficas. & Ofrece un marco conceptual integral, pero carece de validación experimental propia. \\
+\addlinespace
+\cite{alcaraz2023} & Evaluación de riesgos en OCPP 2.0.1 para infraestructuras 4.0. & Aplicación estructurada de modelado de amenazas STRIDE y cuantificación cualitativa DREAD. & Evalúa la versión más reciente del protocolo, pero no mide impacto sobre algoritmos de IA. \\
+\addlinespace
+\cite{jahangir2024} & Detección de manipulación de carga con aprendizaje profundo. & Simulación de ataques de alteración de potencia en OCPP y entrenamiento de red convolucional no supervisada. & Cuantifica pérdidas económicas, pero requiere modelos profundos sin filtrado previo en red. \\
+\addlinespace
+\cite{terruggia2025} & Detección de ciberataques mediante tráfico de red real. & Captura pasiva (Tshark), ingesta en pila ELK y entrenamiento de autocodificador LSTM en 12 estaciones OCPP 1.6J. & Evalúa únicamente ataques DoS sobre métricas TCP con exactitud limitada (52\%). \\
+\addlinespace
+\cite{rahman2026} & Detección de falsificación de SoC en OCPP 2.0.1. & Extracción de variables derivadas de sesión y clasificación con \textit{One-Class SVM} en entorno simulado. & Se restringe a un único campo (\textit{SoC}) y no evalúa la recuperación del planificador energético. \\
+\addlinespace
+\cite{elmo2023} & Explotación práctica de canales OCPP 1.6 sobre WebSockets. & Pruebas de ARP \textit{spoofing}, MitM e inyección de comandos en ciberrango virtual y cargador DC de 350 kW. & Demuestra la viabilidad real de la inyección de paquetes, sin evaluar agentes de decisión. \\
+\addlinespace
+\cite{kohler2023} & Ataque \textit{Brokenwire} en interfaz vehículo-cargador (CCS/ISO 15118). & Inyección de ruido de radiofrecuencia sobre comunicación por línea de potencia (PLC) en vehículos reales. & Opera estrictamente en capa física/enlace; queda fuera del alcance de red del proyecto. \\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+Al evaluar comparativamente las metodologías del Cuadro~\ref{tab:relacionados}, se identifican tres corrientes bien definidas:
+\begin{enumerate}
+    \item \textbf{Estudios analíticos y de modelado de amenazas \cite{alcaraz2017,garofalaki2022,alcaraz2023}:} Resultan rigurosos para catalogar superficies de ataque y debilidades estructurales de OCPP, pero su naturaleza descriptiva o cualitativa impide cuantificar el error inducido en un algoritmo de control o predicción energética.
+    \item \textbf{Evaluaciones experimentales de explotación en red \cite{elmo2023}:} Demuestran de forma empírica que la ausencia de cifrado y autenticación estricta en WebSockets permite interceptar e inyectar mensajes OCPP válidos sintácticamente; sin embargo, detienen su análisis en la interrupción o alteración de la sesión sin estudiar el efecto aguas abajo sobre módulos analíticos.
+    \item \textbf{Detectores basados en aprendizaje automático \cite{jahangir2024,terruggia2025,rahman2026}:} Incorporan métricas cuantitativas de clasificación sobre tráfico o telemetría, pero presentan compromisos importantes para un despliegue ligero: Terruggia \textit{et al.} \cite{terruggia2025} dependen de infraestructura ELK y redes LSTM enfocadas solo en DoS de transporte con bajo desempeño (52\%), mientras que Jahangir \textit{et al.} \cite{jahangir2024} y Rahman \textit{et al.} \cite{rahman2026} emplean modelos de caja negra sin interponer una barrera determinística de saneamiento en capa de aplicación.
+\end{enumerate}
+
+A partir de esta síntesis crítica, el presente trabajo adopta la emulación controlada en software propuesta en \cite{elmo2023} por su reproducibilidad y bajo costo, la inspección de tráfico mediante capturas estándar de paquetes de \cite{terruggia2025}, y el enfoque en manipulación de telemetría energética de \cite{jahangir2024,rahman2026}. Como aporte diferencial, se integra el ciclo completo de extremo a extremo (\textit{ataque en red $\rightarrow$ filtrado en middleware $\rightarrow$ decisión del agente de IA}) utilizando reglas explicables de validación combinadas con detección estadística ligera.
+
+\FloatBarrier
+\section{Planteamiento del Problema y Metodología}
+\label{sec:metodologia}
+
+\subsection{Acotación y Formulación del Problema}
+
+El alcance técnico del proyecto se circunscribe exclusivamente a las \textbf{capas de transporte (TCP) y aplicación (WebSocket / OCPP 1.6J)} de la comunicación entre una estación de carga (EVSE) y un servidor central de gestión (CSMS). El sistema de destino en el CSMS incorpora un agente de inteligencia artificial encargado de pronosticar la demanda energética a corto plazo y asignar perfiles de potencia a las sesiones activas. Al restringir la implementación a un entorno local virtualizado en Python sin hardware de potencia físico, se garantiza la viabilidad técnica y ética dentro del calendario semestral.
+
+En concordancia con esta delimitación, se plantea la siguiente pregunta de investigación: \textit{¿De qué manera la vulneración del canal de comunicación OCPP altera las decisiones de optimización energética de un agente de Inteligencia Artificial en estaciones de carga de vehículos eléctricos, y cómo se puede mitigar mediante un filtro de validación de tráfico en la red?}
+
+\subsection{Vulnerabilidades Analizadas y Delimitación de Capa}
+
+El modelo de amenazas contempla dos vectores principales en las capas de transporte y aplicación:
+\begin{itemize}
+    \item \textbf{Suplantación y manipulación de telemetría (\texttt{CVE-2026-25192}) \cite{nist2026}:} La ausencia de autenticación robusta en puntos finales WebSocket permite que un nodo no autorizado se conecte empleando el identificador de una estación legítima (\texttt{ChargePointId}) y envíe tramas \texttt{MeterValues} con lecturas falsificadas de potencia activa o estado de carga (\textit{SoC}). Esto introduce sesgos severos en el modelo predictivo de la IA, induciendo asignaciones erróneas de potencia y sobrecargas locales.
+    \item \textbf{Debilidad de integridad y confidencialidad en OCPP 1.6J \cite{alcaraz2017,elmo2023}:} Cuando el canal WebSocket opera sin TLS (\texttt{ws://}) ni firma de mensajes, un atacante posicionado en la red local puede capturar, modificar al vuelo o retransmitir mensajes previos (\textit{replay attack}), distorsionando la curva temporal de demanda percibida por el CSMS.
+\end{itemize}
+
+Se excluye explícitamente la vulnerabilidad \textit{Brokenwire} (\texttt{CVE-2022-0878}) \cite{kohler2023}, dado que interrumpe la señalización de bajo nivel sobre línea de potencia (PLC) en la capa física del estándar ISO 15118 mediante ruido de radiofrecuencia, lo cual escapa al dominio de protocolos TCP/IP y WebSockets definido para este estudio.
+
+\subsection{Objetivos Específicos}
+
+\begin{enumerate}
+    \item Simular el tráfico de red entre una estación de carga y un servidor central utilizando el protocolo OCPP 1.6J sobre WebSockets, contemplando escenarios de operación normal e inyección de paquetes maliciosos.
+    \item Implementar un \textit{middleware} de validación de tráfico de red que identifique anomalías estructurales, físicas y estadísticas para filtrar mensajes manipulados antes de entregarlos al módulo de IA.
+    \item Evaluar cuantitativamente la degradación en las decisiones del agente de IA ante tráfico corrupto, comparando su desempeño antes y después de aplicar las reglas de filtrado en la red.
+\end{enumerate}
+
+\subsection{Temas Relacionados y Fundamentos Técnico-Metodológicos}
+
+Para asegurar rigor conceptual entre la ingeniería de redes y el aprendizaje automático, la metodología se sustenta en cuatro ejes temáticos interconectados, cuya integración operativa se esquematiza en la Fig.~\ref{fig:arquitectura}:
+
+\begin{figure*}[t]
+\centering
+\footnotesize
+\begin{tabular}{c c c c c}
+\fbox{\parbox{2.7cm}{\centering \textbf{1. Cliente EVSE}\\Simulador Python\\OCPP 1.6J (JSON)\\Telemetría ($P_t, \text{SoC}_t$)}}
+& $\xrightarrow{\text{WebSocket}}$ &
+\fbox{\parbox{2.8cm}{\centering \textbf{2. Canal de Red}\\Tráfico TCP/WS\\+ Nodo Atacante\\(\texttt{CVE-2026-25192})}}
+& $\xrightarrow{\text{Captura}}$ &
+\fbox{\parbox{2.8cm}{\centering \textbf{3. Middleware}\\Validación Esquema,\\Invariantes Físicos\\y Filtro $Z$-score}}
+\\
+& & $\downarrow$ \scriptsize{Inspección Wireshark (\texttt{.pcap})} & & $\downarrow$ \scriptsize{Tramas saneadas} \\
+\fbox{\parbox{2.7cm}{\centering \textbf{6. Evaluación}\\Métricas MAE, RMSE,\\Sobrecargas, Precisión,\\Sensibilidad y FPR}}
+& $\xleftarrow{\text{Escenarios E1--E3}}$ &
+\fbox{\parbox{2.8cm}{\centering \textbf{5. Despacho Carga}\\Asignación dinámica\\de potencia EVSE\\($\sum P_i \le P_{\text{red,max}}$)}}
+& $\xleftarrow{\hat{P}_{t+1}}$ &
+\fbox{\parbox{2.8cm}{\centering \textbf{4. CSMS + Agente IA}\\Regresor supervisado\\(\texttt{scikit-learn})\\Pronóstico 15 min}}
+\end{tabular}
+\caption{Arquitectura experimental de comunicación OCPP 1.6J sobre WebSockets, inyección de ataques, saneamiento en \textit{middleware} y toma de decisiones del agente predictivo de IA.}
+\label{fig:arquitectura}
+\end{figure*}
+
+\subsubsection{Arquitectura del Protocolo OCPP 1.6J sobre WebSockets}
+El protocolo OCPP-J encapsula cargas útiles JSON sobre conexiones persistentes y bidireccionales (\textit{Full-Duplex}) establecidas mediante el protocolo WebSocket (RFC 6455 \cite{rfc6455}) sobre TCP. Cada trama de llamada (\texttt{CALL}) sigue la estructura \texttt{[2, UniqueId, Action, Payload]}. El proyecto modela el ciclo operativo esencial mediante los mensajes \texttt{BootNotification} (registro), \texttt{StatusNotification} (estado del conector), \texttt{StartTransaction}, \texttt{MeterValues} (telemetría periódica de potencia en $\text{W}$ y \textit{SoC} en $\%$) y \texttt{StopTransaction}.
+
+\subsubsection{Inyección, Alteración y Repetición de Tramas en Capa de Aplicación}
+A diferencia de ataques volumétricos en capa de red, la manipulación semántica en OCPP conserva intactas las cabeceras TCP/IP y la sintaxis JSON, evadiendo cortafuegos tradicionales. Si una lectura legítima reporta una potencia $P_t$ y un estado de carga $\text{SoC}_t$, el módulo atacante inyecta perturbaciones aditivas o de suplantación ($\tilde{P}_t = P_t + \Delta P$, $\widetilde{\text{SoC}}_t \in [0,100]$) o reenvía tramas antiguas con marcas de tiempo desfasadas, buscando engañar al estimador de demanda sin interrumpir la sesión TCP.
+
+\subsubsection{Middleware Explicable de Inspección y Saneamiento}
+Frente a detectores profundos de alto costo computacional \cite{jahangir2024,terruggia2025}, se adopta una arquitectura de \textit{proxy} inverso WebSocket situado entre la interfaz de red del CSMS y el agente de IA. Este componente inspecciona cada trama entrante en tres niveles secuenciales: (a) \textit{validación sintáctica y de identidad} (esquema JSON, unicidad de \texttt{UniqueId} y lista blanca de estaciones); (b) \textit{invariantes físicos del dominio} ($0 \le \text{SoC}_t \le 100\%$, $0 \le P_t \le P_{\text{EVSE,max}}$ y restricción de tasa de cambio $|\text{SoC}_t - \text{SoC}_{t-1}| \le \Delta \text{SoC}_{\max}$); y (c) \textit{filtro estadístico ligero} basado en puntuación $Z$ móvil ($|z_t| = |x_t - \mu_w|/\sigma_w > \tau$) sobre ventanas recientes de telemetría.
+
+\subsubsection{Agente Predictivo y Planificador Restringido de Carga}
+El módulo de IA combina un regresor supervisado ligero (regresión lineal regularizada o bosque aleatorio de baja profundidad en \texttt{scikit-learn}) que pronostica la potencia agregada $\hat{P}_{t+1}$ en ventanas de 15 minutos, acoplado a una regla de despacho que limita la potencia asignada para evitar superar el umbral térmico del transformador local ($\sum_i P_{i,t+1} \le P_{\text{red,max}}$). De este modo, cualquier telemetría maliciosa no filtrada distorsiona directamente $\hat{P}_{t+1}$ y provoca decisiones subóptimas o eventos de sobrecarga.
+
+\subsection{Diseño Metodológico bajo el Marco CRISP-DM}
+
+Para estructurar de manera sistemática el flujo de datos desde la captura de paquetes de red hasta la evaluación del modelo de inteligencia artificial, se adapta la metodología estándar \textbf{CRISP-DM} (\textit{Cross-Industry Standard Process for Data Mining}) \cite{chapman2000} en seis fases iterativas, ilustradas en la Fig.~\ref{fig:crispdm} y detalladas en el Cuadro~\ref{tab:crispdm}:
+
+\begin{figure*}[t]
+\centering
+\footnotesize
+\begin{tabular}{c c c c c}
+\fbox{\parbox{3.1cm}{\centering \textbf{Fase 1: Negocio/Dominio}\\Modelo de amenazas OCPP\\Restricción $P_{\text{total}} \le P_{\max}$}}
+& $\longrightarrow$ &
+\fbox{\parbox{3.1cm}{\centering \textbf{Fase 2: Datos de Red}\\Emulador EVSE--CSMS\\Trazas JSON y Wireshark}}
+& $\longrightarrow$ &
+\fbox{\parbox{3.1cm}{\centering \textbf{Fase 3: Preparación}\\Series de 15 min, $\Delta P, \Delta \text{SoC}$\\Reglas del \textit{Middleware}}}
+\\
+$\uparrow$ \scriptsize{Ajuste iterativo} & & & & $\downarrow$ \\
+\fbox{\parbox{3.1cm}{\centering \textbf{Fase 6: Despliegue}\\Scripts reproducibles,\\evidencias PCAP e informe}}
+& $\longleftarrow$ &
+\fbox{\parbox{3.1cm}{\centering \textbf{Fase 5: Evaluación}\\Contraste E1, E2 y E3\\MAE, RMSE y detección}}
+& $\longleftarrow$ &
+\fbox{\parbox{3.1cm}{\centering \textbf{Fase 4: Modelado IA}\\Entrenamiento regresor\\y calibración umbral $Z$}}
+\end{tabular}
+\caption{Flujo metodológico iterativo bajo el estándar CRISP-DM aplicado al entorno de simulación OCPP 1.6J y mitigación de ataques en el agente de IA.}
+\label{fig:crispdm}
+\end{figure*}
+
+\begin{table*}[t]
+\centering
+\caption{Articulación metodológica del proyecto bajo las fases del estándar CRISP-DM.}
+\label{tab:crispdm}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{2.7cm} >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}p{3.6cm} >{\raggedright\arraybackslash}p{3.9cm}}
+\toprule
+\textbf{Fase CRISP-DM} & \textbf{Actividades en Red e Inteligencia Artificial} & \textbf{Herramientas / Artefactos} & \textbf{Criterios de Salida / Métricas} \\
+\midrule
+\textbf{1. Comprensión del Negocio y Dominio} & Definición del modelo de amenaza (CVE-2026-25192 y MitM/replay), restricción operativa ($P_{\text{total}} \le P_{\max}$) y criterios de éxito. & Especificación OCPP 1.6J, matriz de riesgos y requisitos del CSMS. & Pregunta de investigación acotada y definición formal de métricas. \\
+\addlinespace
+\textbf{2. Comprensión de los Datos} & Implementación del emulador EVSE--CSMS en Python, generación de sesiones normales y trazas de ataque, y captura de paquetes. & Scripts Python (\texttt{websockets}), analizador Wireshark (\texttt{.pcap}). & Conjunto de trazas JSON/PCAP verificadas sin errores de transporte. \\
+\addlinespace
+\textbf{3. Preparación de los Datos} & Extracción de campos OCPP a series temporales (15 min), cálculo de derivadas ($\Delta P, \Delta \text{SoC}$), etiquetado y diseño del \textit{middleware}. & \texttt{pandas}, \texttt{numpy}, proxy de validación en Python. & Dataset limpio para entrenamiento y reglas de filtrado calibradas. \\
+\addlinespace
+\textbf{4. Modelado} & Entrenamiento del regresor predictivo de demanda energética con datos benignos y acoplamiento con el asignador de potencia. & \texttt{scikit-learn} (\texttt{Ridge} / \texttt{RandomForestRegressor}). & Modelo predictivo entrenado y umbral estadístico $Z$ ajustado. \\
+\addlinespace
+\textbf{5. Evaluación} & Ejecución controlada de 3 escenarios: E1 (normal), E2 (ataque sin filtro) y E3 (ataque con filtro); medición de impacto en IA y red. & Arneses de prueba automatizados y estadísticas de red. & MAE, RMSE, eventos de sobrecarga, Precisión, Sensibilidad y FPR. \\
+\addlinespace
+\textbf{6. Despliegue} & Integración modular del prototipo reproducible, documentación de evidencias de red y redacción del informe técnico final. & Repositorio de código Python, capturas Wireshark e informe IEEE. & Entrega completa de scripts funcionales y análisis de mitigación. \\
+\bottomrule
+\end{tabularx}
+\end{table*}
+\FloatBarrier
+
+\subsubsection{Fase 1 -- Comprensión del Negocio y del Dominio}
+Se establecen los objetivos operativos del sistema de gestión de carga: maximizar el suministro energético dentro de una capacidad máxima nominal $P_{\text{red,max}}$ evitando picos de sobrecarga. Se formalizan los perfiles de ataque a nivel de aplicación (inyección de valores extremos de potencia/SoC, suplantación de \texttt{ChargePointId} y repetición de tramas \texttt{MeterValues}) y se fijan las métricas de éxito tanto para el agente de IA como para el filtro de red.
+
+\subsubsection{Fase 2 -- Comprensión de los Datos}
+Se construye un entorno local en Python basado en la biblioteca \texttt{websockets} compuesto por un servidor CSMS, clientes EVSE simulados y un nodo inyector de tráfico malicioso. Se generan perfiles sintéticos realistas de carga diaria (curvas residenciales y laborales con muestreo cada 15 minutos) y se captura el intercambio completo en la interfaz de bucle invertido (\textit{loopback}) mediante \textbf{Wireshark}, verificando la estructura de las tramas HTTP \textit{Upgrade}, los mensajes JSON OCPP 1.6J y las marcas de tiempo de arribo.
+
+\subsubsection{Fase 3 -- Preparación de los Datos}
+Los registros JSON capturados se transforman en vectores estructurados con variables de estado ($P_t$, $\text{SoC}_t$, energía acumulada $E_t$) y variables dinámicas derivadas de ventana:
+\begin{equation}
+\Delta P_t = P_t - P_{t-1}, \quad \Delta \text{SoC}_t = \text{SoC}_t - \text{SoC}_{t-1}, \quad \Delta t_{\text{pkt}} = t_k - t_{k-1}
+\end{equation}
+Se etiquetan las instancias benignas ($y=0$) y manipuladas ($y=1$) para calibrar las reglas del \textit{middleware} de validación. Los paquetes descartados por violar el esquema JSON, duplicar identificadores \texttt{UniqueId} o infringir cotas físicas ($\Delta \text{SoC}_t > \Delta \text{SoC}_{\max}$ o $|z_t| > \tau$) son bloqueados en el \textit{proxy} antes de actualizar el estado del agente.
+
+\subsubsection{Fase 4 -- Modelado}
+Se entrena un modelo de regresión supervisada en \texttt{scikit-learn} exclusivamente sobre particiones limpias (70\% entrenamiento, 30\% validación) para estimar la demanda en el siguiente intervalo $\hat{P}_{t+1} = f_{\theta}(P_t, P_{t-1}, \text{SoC}_t, h_t)$, donde $h_t$ representa la franja horaria. Sobre esta predicción opera un algoritmo determinístico de asignación que redistribuye la potencia disponible entre estaciones activas cuando $\sum \hat{P}_{i,t+1} > P_{\text{red,max}}$. Paralelamente, se integra el motor de reglas del \textit{middleware} con umbral estadístico $\tau = 3.0$ para minimizar falsos positivos durante rampas normales de carga.
+
+\subsubsection{Fase 5 -- Evaluación}
+Se ejecutan pruebas repetibles bajo tres escenarios experimentales idénticos en duración y carga base:
+\begin{itemize}
+    \item \textbf{Escenario E1 (Línea base normal):} Tráfico OCPP 1.6J legítimo sin perturbaciones, estableciendo el error intrínseco de referencia del agente de IA.
+    \item \textbf{Escenario E2 (Ataque sin mitigación):} Inyección activa de telemetría falsificada (\texttt{CVE-2026-25192}) y repetición de tramas directamente hacia el CSMS sin filtrado.
+    \item \textbf{Escenario E3 (Ataque con middleware activo):} Ejecución de los mismos vectores de ataque de E2 con el filtro de validación habilitado en la ruta de red.
+\end{itemize}
+
+El desempeño del agente de IA se cuantifica mediante el Error Absoluto Medio ($\text{MAE}$), la Raíz del Error Cuadrático Medio ($\text{RMSE}$) y el conteo de intervalos con sobrecarga real ($N_{\text{sobrecarga}}$):
+\begin{equation}
+\text{MAE} = \frac{1}{N}\sum_{t=1}^{N} |P_t - \hat{P}_t|, \qquad \text{RMSE} = \sqrt{\frac{1}{N}\sum_{t=1}^{N} (P_t - \hat{P}_t)^2}
+\end{equation}
+Por su parte, la eficacia del \textit{middleware} se evalúa mediante Precisión, Sensibilidad (\textit{Recall}), Tasa de Falsos Positivos ($\text{FPR}$) y latencia adicional introducida por la inspección ($\Delta \text{RTT}$ en milisegundos).
+
+\subsubsection{Fase 6 -- Despliegue y Documentación}
+Finalmente, se empaqueta el prototipo en módulos desacoplados en Python con parámetros configurables, acompañados de filtros de visualización para Wireshark, gráficas comparativas de los tres escenarios (E1, E2 y E3) y el informe técnico consolidado con recomendaciones de endurecimiento (\textit{hardening}) para despliegues OCPP.
+
+\subsection{Entregables del Proyecto}
+
+\begin{itemize}
+    \item \textbf{Entorno de simulación de red:} Scripts en Python que emulan el cliente EVSE, el servidor CSMS sobre WebSockets y el módulo de inyección/repetición de ataques OCPP 1.6J.
+    \item \textbf{Agente de IA y middleware de validación:} Código fuente del modelo predictivo de carga junto con el \textit{proxy} de filtrado basado en reglas físicas y estadísticas.
+    \item \textbf{Informe técnico en formato IEEE:} Documento con capturas y disección de tráfico en Wireshark, tablas y gráficas comparativas de desempeño bajo ataque (E1--E3) y análisis de mitigación.
+\end{itemize}
+
+\FloatBarrier
+\begin{thebibliography}{11}
+
+\bibitem{alcaraz2017}
+C. Alcaraz, J. Lopez, and S. Wolthusen, ``OCPP protocol: Security threats and challenges,'' \textit{IEEE Trans. Smart Grid}, vol. 8, no. 5, pp. 2452--2459, Sep. 2017, doi: 10.1109/TSG.2017.2669647.
+
+\bibitem{garofalaki2022}
+Z. Garofalaki, D. Kosmanos, S. Moschoyiannis, D. Kallergis, and C. Douligeris, ``Electric vehicle charging: A survey on the security issues and challenges of the Open Charge Point Protocol (OCPP),'' \textit{IEEE Commun. Surveys Tuts.}, vol. 24, no. 3, pp. 1504--1533, 3rd Quart., 2022, doi: 10.1109/COMST.2022.3184448.
+
+\bibitem{alcaraz2023}
+C. Alcaraz, J. Cumplido, and A. Triviño, ``OCPP in the spotlight: Threats and countermeasures for electric vehicle charging infrastructures 4.0,'' \textit{Int. J. Inf. Secur.}, vol. 22, no. 5, pp. 1395--1421, 2023, doi: 10.1007/s10207-023-00698-8.
+
+\bibitem{jahangir2024}
+H. Jahangir, S. Lakshminarayana, and H. V. Poor, ``Charge manipulation attacks against smart electric vehicle charging stations and deep learning-based detection mechanisms,'' \textit{IEEE Trans. Smart Grid}, vol. 15, no. 5, pp. 5182--5194, Sep. 2024, doi: 10.1109/TSG.2024.3389721.
+
+\bibitem{terruggia2025}
+R. Terruggia, A. Maldarella, G. Dondossola, and G. Webber, ``Enhancing the detection of cyber-attacks to EV charging infrastructures through AI technologies,'' \textit{Electronics}, vol. 14, no. 21, Art. no. 4321, 2025, doi: 10.3390/electronics14214321.
+
+\bibitem{rahman2026}
+A. B. Rahman \textit{et al.}, ``Unsupervised detection of SOC spoofing in OCPP 2.0.1 EV charging communication protocol using one-class SVM,'' \textit{Future Internet}, vol. 18, no. 1, Art. no. 60, 2026, doi: 10.3390/fi18010060.
+
+\bibitem{elmo2023}
+D. Elmo, G. Fragkos, J. Johnson, K. Rohde, S. Salinas, and J. Zhang, ``Disrupting EV charging sessions and gaining remote code execution with DoS, MitM, and code injection exploits using OCPP 1.6,'' in \textit{Proc. Resilience Week (RWS)}, 2023, pp. 1--8.
+
+\bibitem{kohler2023}
+S. Köhler, R. Baker, M. Strohmeier, and I. Martinovic, ``BROKENWIRE: Wireless disruption of CCS electric vehicle charging,'' in \textit{Proc. 30th Netw. Distrib. Syst. Secur. Symp. (NDSS)}, 2023.
+
+\bibitem{nist2026}
+NIST, ``CVE-2026-25192,'' National Vulnerability Database, Mar. 2026. [En línea]. Disponible en: \url{https://nvd.nist.gov/vuln/detail/CVE-2026-25192}
+
+\bibitem{chapman2000}
+P. Chapman \textit{et al.}, \textit{CRISP-DM 1.0: Step-by-step data mining guide}. Chicago, IL, USA: SPSS Inc., 2000.
+
+\bibitem{rfc6455}
+I. Fette and A. Melnikov, \textit{The WebSocket Protocol}, IETF RFC 6455, Dec. 2011.
+
+\end{thebibliography}
+
+\end{document}
