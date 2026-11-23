@@ -63,20 +63,42 @@
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {\mbox  {III-E}1}Fase 1 -- Comprensión del Negocio y del Dominio}{5}{}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {\mbox  {III-E}2}Fase 2 -- Comprensión de los Datos}{5}{}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {\mbox  {III-E}3}Fase 3 -- Preparación de los Datos}{5}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {\mbox  {III-E}4}Fase 4 -- Modelado}{6}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {\mbox  {III-E}5}Fase 5 -- Evaluación}{6}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {\mbox  {III-E}6}Fase 6 -- Despliegue y Documentación}{6}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {IV}Desarrollo e Implementación}{6}{}\protected@file@percent }
+\newlabel{sec:desarrollo}{{IV}{6}{}{section.4}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Diagrama de secuencia del tráfico OCPP 1.6J a través del \textit  {proxy} inverso de validación (\texttt  {8765/TCP}) hacia el servidor CSMS (\texttt  {8766/TCP}).}}{6}{}\protected@file@percent }
+\newlabel{fig:secuencia}{{3}{6}{}{figure.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-A}}Arquitectura de Software y Flujo de Tramas}{6}{}\protected@file@percent }
+\newlabel{lst:ocpp_frame}{{1}{6}{}{lstlisting.1}{}}
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {1}Estructura de trama OCPP 1.6J \texttt  {MeterValues} transmitida sobre WebSocket.}{6}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-B}}Mecanismos Implementados de Ataque y Defensa}{6}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {V}Resultados Experimentales y Discusión}{7}{}\protected@file@percent }
+\newlabel{sec:resultados}{{V}{7}{}{section.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {V-A}}Impacto en las Decisiones del Agente de IA (E1--E3)}{7}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {V-B}}Desempeño de Detección y Sobrecarga del Middleware}{7}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {V-C}}Inspección de Tráfico en Wireshark}{7}{}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {III}{\ignorespaces Métricas de error predictivo de la IA y eventos de sobrecarga en los escenarios experimentales E1, E2 y E3.}}{7}{}\protected@file@percent }
+\newlabel{tab:resultados_ia}{{III}{7}{}{table.3}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {IV}{\ignorespaces Desempeño de detección y latencia del middleware de validación en el escenario E3.}}{7}{}\protected@file@percent }
+\newlabel{tab:resultados_mw}{{IV}{7}{}{table.4}{}}
 \bibcite{alcaraz2017}{1}
 \bibcite{garofalaki2022}{2}
 \bibcite{alcaraz2023}{3}
 \bibcite{jahangir2024}{4}
 \bibcite{terruggia2025}{5}
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Comparación cuantitativa del error de predicción (MAE y RMSE) del agente de IA y eventos de sobrecarga eléctrica en los escenarios E1, E2 y E3.}}{8}{}\protected@file@percent }
+\newlabel{fig:comparativa}{{4}{8}{}{figure.4}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Disección del flujo WebSocket/OCPP 1.6J en Wireshark: (a) sesión legítima (\texttt  {\_is\_attack: false}) con asignación normal de potencia; (b) explotación en E2 (\texttt  {\_is\_attack: true}) mostrando inyección de potencia ($44.9\text  { kW}$), salto anómalo de SoC ($99\%$ a $5\%$) y repetición de \texttt  {UniqueId} aceptados por el CSMS.}}{8}{}\protected@file@percent }
+\newlabel{fig:wireshark}{{5}{8}{}{figure.5}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {VI}Conclusiones y Recomendaciones}{8}{}\protected@file@percent }
+\newlabel{sec:conclusiones}{{VI}{8}{}{section.6}{}}
+\@writefile{toc}{\contentsline {section}{Referencias}{8}{}\protected@file@percent }
 \bibcite{rahman2026}{6}
 \bibcite{elmo2023}{7}
 \bibcite{kohler2023}{8}
 \bibcite{nist2026}{9}
 \bibcite{chapman2000}{10}
 \bibcite{rfc6455}{11}
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {\mbox  {III-E}4}Fase 4 -- Modelado}{6}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {\mbox  {III-E}5}Fase 5 -- Evaluación}{6}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsubsection}{\numberline {\mbox  {III-E}6}Fase 6 -- Despliegue y Documentación}{6}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-F}}Entregables del Proyecto}{6}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{Referencias}{6}{}\protected@file@percent }
-\gdef \@abspage@last{6}
+\gdef \@abspage@last{9}

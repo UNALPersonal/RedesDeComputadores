@@ -1,0 +1,4 @@
+,MAE_W,RMSE_W,Sobrecargas
+E1_Normal,554.19,691.87,3.0
+E2_Ataque_Sin_Filtro,770.52,1151.86,29.0
+E3_Ataque_Con_Middleware,582.04,733.86,3.0
