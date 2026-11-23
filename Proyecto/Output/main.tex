@@ -280,38 +280,21 @@ Con base en el diseño metodológico de la Sección~\ref{sec:metodologia}, se im
 
 El prototipo se organizó en siete módulos desacoplados (\texttt{config.py}, \texttt{data\_generator.py}, \texttt{ai\_agent.py}, \texttt{middleware\_proxy.py}, \texttt{csms\_server.py}, \texttt{evse\_client.py}, \texttt{attacker.py}) coordinados por el orquestador \texttt{run\_experiment.py}. La Fig.~\ref{fig:secuencia} ilustra el flujo de mensajes OCPP 1.6J y la intervención del \textit{proxy} de seguridad ante tráfico legítimo y malicioso:
 
-\begin{figure}[t]
+\begin{table*}[t]
 \centering
-\begin{tikzpicture}[
-    actor/.style={draw, rounded corners=2pt, fill=blue!6, font=\scriptsize\bfseries, align=center, minimum width=1.95cm, minimum height=0.68cm},
-    evil/.style={draw, rounded corners=2pt, fill=red!8, font=\scriptsize\bfseries, align=center, minimum width=1.95cm, minimum height=0.68cm},
-    msg/.style={-{Stealth[length=2mm]}, thick},
-    blk/.style={-{Stealth[length=2mm]}, thick, dashed, red!75!black}
-]
-\node[actor] (evse) at (0,0) {EVSE Legítimo\\(\texttt{CP\_001..003})};
-\node[actor] (mw) at (2.8,0) {Middleware\\(\texttt{:8765/TCP})};
-\node[actor] (csms) at (5.6,0) {CSMS + IA\\(\texttt{:8766/TCP})};
-
-% Líneas de vida
-\draw[gray!60] (0,-0.34) -- (0,-2.05);
-\draw[gray!60] (2.8,-0.34) -- (2.8,-3.95);
-\draw[gray!60] (5.6,-0.34) -- (5.6,-2.05);
-
-% Tráfico legítimo
-\draw[msg, blue!70!black] (0,-0.75) -- node[above, font=\tiny] {\texttt{[2,id,"MeterValues"]}} (2.8,-0.75);
-\draw[msg, teal!75!black] (2.8,-1.15) -- node[above, font=\tiny] {Trama saneada} (5.6,-1.15);
-\draw[msg, teal!75!black] (5.6,-1.55) -- node[below, font=\tiny] {\texttt{[3,id,\{allocated\_w\}]}} (2.8,-1.55);
-
-% Nodo atacante aislado debajo
-\node[evil] (atk) at (0,-3.10) {Atacante\\(\texttt{CVE-2026-25192})};
-
-% Tráfico malicioso bloqueado saliendo desde el borde derecho
-\draw[blk] (1.02,-2.90) -- node[above, font=\tiny] {\texttt{Spoofing / Replay}} (2.8,-2.90);
-\draw[blk] (2.8,-3.40) -- node[below, font=\tiny] {\texttt{[4,id,"SecurityError"]}} (1.02,-3.40);
-\end{tikzpicture}
-\caption{Diagrama de secuencia del tráfico OCPP 1.6J a través del \textit{proxy} inverso de validación (\texttt{8765/TCP}) hacia el servidor CSMS (\texttt{8766/TCP}).}
-\label{fig:secuencia}
-\end{figure}
+\caption{Matriz de vulnerabilidades identificadas en el protocolo OCPP 1.6J.}
+\label{tab:vulnerabilidades}
+\begin{tabularx}{\textwidth}{l X X c}
+\toprule
+\textbf{ID} & \textbf{Vulnerabilidad} & \textbf{Impacto Operativo} & \textbf{CWE / CVSS} \\
+\midrule
+V-01 & Transmisión en texto claro (\texttt{ws://}) & Intercepción de tramas y captura de credenciales RFID & CWE-319 / 7.5 \\
+V-02 & Ausencia de validación de identidad & Suplantación de estación de carga (Spoofing) & CWE-287 / 8.1 \\
+V-03 & Inyección de comandos remotos & Detención forzada de sesiones de carga activas & CWE-306 / 9.8 \\
+V-04 & Agotamiento de recursos (DoS) & Pérdida de disponibilidad del servidor central & CWE-400 / 7.5 \\
+\bottomrule
+\end{tabularx}
+\end{table*}
 
 Cada sesión EVSE modela una estación AC trifásica con potencia máxima $P_{\text{EVSE,max}} = 22\text{ kW}$ conectada a un transformador local con capacidad térmica nominal $P_{\text{red,max}} = 45\text{ kW}$. La telemetría periódica enviada cada 15 minutos sigue la estructura JSON estándar de OCPP 1.6J mostrada en el Listado~\ref{lst:ocpp_frame}, ajustada al ancho de columna:
 

@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.29 (MiKTeX 26.5) (preloaded format=pdflatex 2026.11.20)  23 NOV 2026 15:24
+This is pdfTeX, Version 3.141592653-2.6-1.40.29 (MiKTeX 26.5) (preloaded format=pdflatex 2026.11.20)  23 NOV 2026 15:37
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -672,6 +672,10 @@ Overfull \hbox (18.12505pt too wide) detected at line 246
  []
 
 [5]
+
+LaTeX Warning: Reference `fig:secuencia' on page 6 undefined on input line 281.
+
+
 Underfull \hbox (badness 10000) in paragraph at lines 281--282
 \T1/ptm/m/n/10 (+20) (\T1/pcr/m/n/10 config.py\T1/ptm/m/n/10 (+20) , \T1/pcr/m/n/10 data_generator.py\T1/ptm/m/n/10 (+20) , \T1/pcr/m/n/10 ai_agent.py\T1/ptm/m/n/10 (+20) ,
  []
@@ -687,12 +691,12 @@ Underfull \hbox (badness 10000) in paragraph at lines 281--282
  []
 
 
-Overfull \hbox (6.0pt too wide) in paragraph at lines 327--327
+Overfull \hbox (6.0pt too wide) in paragraph at lines 310--310
 [][] 
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 333--334
+Underfull \hbox (badness 10000) in paragraph at lines 316--317
 []\T1/ptm/b/n/10 (+20) Middleware Ex-pli-ca-ble de Tres Ni-ve-les
  []
 
@@ -700,24 +704,24 @@ Underfull \hbox (badness 10000) in paragraph at lines 333--334
 <../Data/comparativa_escenarios.png, id=46, 722.7pt x 289.08pt>
 File: ../Data/comparativa_escenarios.png Graphic file (type png)
 <use ../Data/comparativa_escenarios.png>
-Package pdftex.def Info: ../Data/comparativa_escenarios.png  used on input line 368.
+Package pdftex.def Info: ../Data/comparativa_escenarios.png  used on input line 351.
 (pdftex.def)             Requested size: 474.71906pt x 189.88913pt.
 <../Data/wireshark_trama_ocpp.png, id=48, 738.3585pt x 314.97675pt>
 File: ../Data/wireshark_trama_ocpp.png Graphic file (type png)
 <use ../Data/wireshark_trama_ocpp.png>
-Package pdftex.def Info: ../Data/wireshark_trama_ocpp.png  used on input line 417.
+Package pdftex.def Info: ../Data/wireshark_trama_ocpp.png  used on input line 400.
 (pdftex.def)             Requested size: 242.52063pt x 103.45721pt.
+<../Data/wireshark_ataque_ocpp.png, id=49, 925.65825pt x 269.20575pt>
+File: ../Data/wireshark_ataque_ocpp.png Graphic file (type png)
+<use ../Data/wireshark_ataque_ocpp.png>
+Package pdftex.def Info: ../Data/wireshark_ataque_ocpp.png  used on input line 406.
+(pdftex.def)             Requested size: 242.52063pt x 70.52995pt.
 
-Overfull \hbox (1.80157pt too wide) in paragraph at lines 423--423
- \T1/pcr/m/n/10 Proyecto/Data/wireshark_ataque_ocpp.png 
- []
-
-
-Overfull \hbox (3.51932pt too wide) in paragraph at lines 412--425
+Overfull \hbox (7.04153pt too wide) in paragraph at lines 395--408
  [][] 
  []
 
-[7] [8 <../Data/comparativa_escenarios.png> <../Data/wireshark_trama_ocpp.png>]
+[7] [8 <../Data/comparativa_escenarios.png> <../Data/wireshark_trama_ocpp.png> <../Data/wireshark_ataque_ocpp.png>]
 
 ** Conference Paper **
 Before submitting the final camera ready copy, remember to:
@@ -739,19 +743,23 @@ LaTeX Info: Redefining \% on input line 15.
 LaTeX2e <2026-11-01>
 L3 programming layer <2026-09-09>
  ***********
+
+
+LaTeX Warning: There were undefined references.
+
  ) 
 Here is how much of TeX's memory you used:
- 21451 strings out of 467310
- 411659 string characters out of 5402813
- 891950 words of memory out of 5000000
- 50122 multiletter control sequences out of 15000+600000
- 774085 words of font info for 430 fonts, out of 8000000 for 9000
+ 21313 strings out of 467310
+ 409145 string characters out of 5402813
+ 888364 words of memory out of 5000000
+ 50003 multiletter control sequences out of 15000+600000
+ 770142 words of font info for 416 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
  92i,19n,94p,1979b,1069s stack positions out of 10000i,1000n,20000p,200000b,200000s
 <C:/Users/neujo/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmex10.pfb><C:/Users/neujo/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cmextra/cmex8.pfb><C:/Users/neujo/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi10.pfb><C:/Users/neujo/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi5.pfb><C:/Users/neujo/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi6.pfb><C:/Users/neujo/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi7.pfb><C:/Users/neujo/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi8.pfb><C:/Users/neujo/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi9.pfb><C:/Users/neujo/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr10.pfb><C:/Users/neujo/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr5.pfb><C:/Users/neujo/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr6.pfb><C:/Users/neujo/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr7.pfb><C:/Users/neujo/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr8.pfb><C:/Users/neujo/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr9.pfb><C:/Users/neujo/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy10.pfb><C:/Users/neujo/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy7.pfb><C:/Users/neujo/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy8.pfb><C:/Users/neujo/AppData/Local/Programs/MiKTeX/fonts/type1/urw/courier/ucrb8a.pfb><C:/Users/neujo/AppData/Local/Programs/MiKTeX/fonts/type1/urw/courier/ucrr8a.pfb><C:/Users/neujo/AppData/Local/Programs/MiKTeX/fonts/type1/urw/times/utmb8a.pfb><C:/Users/neujo/AppData/Local/Programs/MiKTeX/fonts/type1/urw/times/utmbi8a.pfb><C:/Users/neujo/AppData/Local/Programs/MiKTeX/fonts/type1/urw/times/utmr8a.pfb><C:/Users/neujo/AppData/Local/Programs/MiKTeX/fonts/type1/urw/times/utmri8a.pfb>
-Output written on main.pdf (9 pages, 515595 bytes).
+Output written on main.pdf (9 pages, 578755 bytes).
 PDF statistics:
- 156 PDF objects out of 1000 (max. 8388607)
+ 158 PDF objects out of 1000 (max. 8388607)
  0 named destinations out of 1000 (max. 500000)
- 75799 words of extra memory for PDF output out of 89155 (max. 10000000)
+ 68636 words of extra memory for PDF output out of 74296 (max. 10000000)
 
