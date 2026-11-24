@@ -103,7 +103,7 @@ Con el fin de fundamentar el diseño experimental, se revisaron ocho investigaci
 \addlinespace
 \cite{elmo2023} & Explotación práctica de canales OCPP 1.6 sobre WebSockets. & Pruebas de ARP \textit{spoofing}, MitM e inyección de comandos en ciberrango virtual y cargador DC de 350 kW. & Demuestra la viabilidad real de la inyección de paquetes, sin evaluar agentes de decisión. \\
 \addlinespace
-\cite{kohler2023} & Ataque \textit{Brokenwire} en interfaz vehículo-cargador (CCS/ISO 15118). & Inyección de ruido de radiofrecuencia sobre comunicación por línea de potencia (PLC) en vehículos reales. & Opera strictly en capa física/enlace; queda fuera del alcance de red del proyecto. \\
+\cite{kohler2023} & Ataque \textit{Brokenwire} en interfaz vehículo-cargador (CCS/ISO 15118). & Inyección de ruido de radiofrecuencia sobre comunicación por línea de potencia (PLC) en vehículos reales. & Opera estrictamente en capa física/enlace; queda fuera del alcance de red del proyecto. \\
 \bottomrule
 \end{tabularx}
 \end{table*}
@@ -309,7 +309,7 @@ El prototipo se organizó en siete módulos desacoplados (\texttt{config.py}, \t
     node[midway, above, lbl] {BootNotification / MeterValues};
 
 \node[draw=orange!70!black, fill=orange!10, rounded corners=2pt, font=\tiny, inner sep=2.5pt]
-    at (4.2, -1.35) {Validación + IA (1.2 ms)};
+    at (4.2, -1.35) {Validación + IA (0.095 ms)};
 
 \draw[msg, green!50!black] (4.2, -1.80) -- (7.4, -1.80)
     node[midway, above, lbl] {Reenvío autorizado};
