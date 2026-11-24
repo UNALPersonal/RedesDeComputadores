@@ -1,7 +1,7 @@
 \documentclass[conference]{IEEEtran}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
-\usepackage[spanish,es-noquoting]{babel}
+\usepackage[spanish,es-tabla]{babel}
 \usepackage{amsmath,amssymb}
 \usepackage{booktabs}
 \usepackage{tabularx}
@@ -14,7 +14,7 @@
 \usepackage{listings}
 \usepackage{xcolor}
 \usepackage{tikz}
-\usetikzlibrary{arrows.meta,positioning}
+\usetikzlibrary{arrows.meta,positioning,babel}
 
 % Evita la advertencia T1/ptm/m/scit en captions con cursiva de IEEEtran
 \DeclareFontShape{T1}{ptm}{m}{scit}{<->ssub*ptm/m/it}{}
@@ -103,7 +103,7 @@ Con el fin de fundamentar el diseño experimental, se revisaron ocho investigaci
 \addlinespace
 \cite{elmo2023} & Explotación práctica de canales OCPP 1.6 sobre WebSockets. & Pruebas de ARP \textit{spoofing}, MitM e inyección de comandos en ciberrango virtual y cargador DC de 350 kW. & Demuestra la viabilidad real de la inyección de paquetes, sin evaluar agentes de decisión. \\
 \addlinespace
-\cite{kohler2023} & Ataque \textit{Brokenwire} en interfaz vehículo-cargador (CCS/ISO 15118). & Inyección de ruido de radiofrecuencia sobre comunicación por línea de potencia (PLC) en vehículos reales. & Opera estrictamente en capa física/enlace; queda fuera del alcance de red del proyecto. \\
+\cite{kohler2023} & Ataque \textit{Brokenwire} en interfaz vehículo-cargador (CCS/ISO 15118). & Inyección de ruido de radiofrecuencia sobre comunicación por línea de potencia (PLC) en vehículos reales. & Opera strictly en capa física/enlace; queda fuera del alcance de red del proyecto. \\
 \bottomrule
 \end{tabularx}
 \end{table*}
@@ -280,21 +280,59 @@ Con base en el diseño metodológico de la Sección~\ref{sec:metodologia}, se im
 
 El prototipo se organizó en siete módulos desacoplados (\texttt{config.py}, \texttt{data\_generator.py}, \texttt{ai\_agent.py}, \texttt{middleware\_proxy.py}, \texttt{csms\_server.py}, \texttt{evse\_client.py}, \texttt{attacker.py}) coordinados por el orquestador \texttt{run\_experiment.py}. La Fig.~\ref{fig:secuencia} ilustra el flujo de mensajes OCPP 1.6J y la intervención del \textit{proxy} de seguridad ante tráfico legítimo y malicioso:
 
-\begin{table*}[t]
+\begin{figure}[t]
 \centering
-\caption{Matriz de vulnerabilidades identificadas en el protocolo OCPP 1.6J.}
-\label{tab:vulnerabilidades}
-\begin{tabularx}{\textwidth}{l X X c}
-\toprule
-\textbf{ID} & \textbf{Vulnerabilidad} & \textbf{Impacto Operativo} & \textbf{CWE / CVSS} \\
-\midrule
-V-01 & Transmisión en texto claro (\texttt{ws://}) & Intercepción de tramas y captura de credenciales RFID & CWE-319 / 7.5 \\
-V-02 & Ausencia de validación de identidad & Suplantación de estación de carga (Spoofing) & CWE-287 / 8.1 \\
-V-03 & Inyección de comandos remotos & Detención forzada de sesiones de carga activas & CWE-306 / 9.8 \\
-V-04 & Agotamiento de recursos (DoS) & Pérdida de disponibilidad del servidor central & CWE-400 / 7.5 \\
-\bottomrule
-\end{tabularx}
-\end{table*}
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[
+    actor/.style={draw, rounded corners=2pt, minimum width=1.8cm, minimum height=0.65cm, align=center, font=\scriptsize\bfseries},
+    evse/.style={actor, fill=blue!12, draw=blue!60!black},
+    mid/.style={actor, fill=orange!15, draw=orange!70!black},
+    csms/.style={actor, fill=green!12, draw=green!60!black},
+    atk/.style={actor, fill=red!12, draw=red!70!black},
+    msg/.style={-{Stealth[length=2mm]}, thick, font=\tiny},
+    ret/.style={-{Stealth[length=2mm]}, thick, dashed, font=\tiny},
+    lbl/.style={font=\tiny, fill=white, inner sep=1pt}
+]
+
+% Actores superiores
+\node[evse] (evse) at (0.6, 0) {EVSE};
+\node[mid]  (mid)  at (4.2, 0) {Middleware\\Proxy + IA};
+\node[csms] (csms) at (7.4, 0) {CSMS};
+
+% Líneas de vida principales
+\draw[dashed, gray] (evse.south) -- (0.6, -2.35);
+\draw[dashed, gray] (mid.south)  -- (4.2, -4.85);
+\draw[dashed, gray] (csms.south) -- (7.4, -4.85);
+
+% --- Flujo legítimo ---
+\draw[msg, blue!70!black] (0.6, -0.85) -- (4.2, -0.85)
+    node[midway, above, lbl] {BootNotification / MeterValues};
+
+\node[draw=orange!70!black, fill=orange!10, rounded corners=2pt, font=\tiny, inner sep=2.5pt]
+    at (4.2, -1.35) {Validación + IA (1.2 ms)};
+
+\draw[msg, green!50!black] (4.2, -1.80) -- (7.4, -1.80)
+    node[midway, above, lbl] {Reenvío autorizado};
+
+\draw[ret, blue!70!black] (7.4, -2.20) -- (0.6, -2.20)
+    node[pos=0.65, above, lbl] {Respuesta OCPP \texttt{[3, id, \{...\}]}};
+
+% --- Bloque Atacante con su propia línea de vida ---
+\node[atk] (atk) at (0.6, -3.0) {Atacante\\(\texttt{attacker.py})};
+\draw[dashed, red!60!black] (atk.south) -- (0.6, -4.85);
+
+% --- Flujo malicioso (ambas flechas conectadas a la línea de vida del Atacante) ---
+\draw[msg, red!75!black] (0.6, -3.85) -- (4.2, -3.85)
+    node[midway, above, lbl] {Spoofing / Replay};
+
+\draw[ret, red!75!black] (4.2, -4.55) -- (0.6, -4.55)
+    node[midway, above, lbl] {\texttt{[4, id, "SecurityError"]}};
+
+\end{tikzpicture}%
+}
+\caption{Flujo de mensajes entre EVSE, Atacante, Middleware Proxy + IA y CSMS.}
+\label{fig:secuencia}
+\end{figure}
 
 Cada sesión EVSE modela una estación AC trifásica con potencia máxima $P_{\text{EVSE,max}} = 22\text{ kW}$ conectada a un transformador local con capacidad térmica nominal $P_{\text{red,max}} = 45\text{ kW}$. La telemetría periódica enviada cada 15 minutos sigue la estructura JSON estándar de OCPP 1.6J mostrada en el Listado~\ref{lst:ocpp_frame}, ajustada al ancho de columna:
 
@@ -345,9 +383,9 @@ El Cuadro~\ref{tab:resultados_ia} y la Fig.~\ref{fig:comparativa} consolidan las
 \begin{figure*}[t]
 \centering
 \IfFileExists{../Data/comparativa_escenarios.png}{
-    \includegraphics[width=0.92\textwidth]{../Data/comparativa_escenarios.png}
+    \includegraphics[width=0.88\textwidth]{../Data/comparativa_escenarios.png}
 }{
-    \fbox{\parbox{0.88\textwidth}{\centering\vspace{1.2cm}\textbf{[Figura 4: Gráfica comparativa E1, E2 y E3]}\\Verifique que \texttt{comparativa\_escenarios.png} se encuentre en \texttt{Proyecto/Data/}.\vspace{1.2cm}}}
+    \fbox{\parbox{0.85\textwidth}{\centering\vspace{1.2cm}\textbf{[Figura 4: Gráfica comparativa E1, E2 y E3]}\\Verifique que \texttt{comparativa\_escenarios.png} se encuentre en \texttt{Proyecto/Data/}.\vspace{1.2cm}}}
 }
 \caption{Comparación cuantitativa del error de predicción (MAE y RMSE) del agente de IA y eventos de sobrecarga eléctrica en los escenarios E1, E2 y E3.}
 \label{fig:comparativa}
@@ -390,24 +428,23 @@ El cálculo de la puntuación $Z$ sobre las primeras diferencias $\Delta P_t$ el
 
 La captura realizada sobre la interfaz de bucle invertido con Wireshark confirmó que las tramas maliciosas mantienen cabeceras TCP/IP y enmarcado WebSocket (RFC 6455) válidos, evadiendo cortafuegos tradicionales de capa de transporte. La Fig.~\ref{fig:wireshark} contrasta el intercambio legítimo frente a la inyección de telemetría alterada y tramas repetidas aceptadas por el CSMS cuando opera sin filtrado.
 
-\begin{figure*}[t]
+\begin{figure}[t]
 \centering
-\begin{tabular}{cc}
-\IfFileExists{../Data/wireshark_trama_ocpp.png}{
-    \includegraphics[width=0.47\textwidth]{../Data/wireshark_trama_ocpp.png}
-}{
-    \fbox{\parbox{0.45\textwidth}{\centering\vspace{1.4cm}\textbf{(a) Trama OCPP 1.6J Legítima}\\Falta \texttt{Proyecto/Data/wireshark\_trama\_ocpp.png}\vspace{1.4cm}}}
-}
-&
-\IfFileExists{../Data/wireshark_ataque_ocpp.png}{
-    \includegraphics[width=0.47\textwidth]{../Data/wireshark_ataque_ocpp.png}
-}{
-    \fbox{\parbox{0.45\textwidth}{\centering\vspace{1.4cm}\textbf{(b) Inyección y Replay en Escenario E2}\\Falta \texttt{Proyecto/Data/wireshark\_ataque\_ocpp.png}\vspace{1.4cm}}}
-}
-\end{tabular}
-\caption{Disección del flujo WebSocket/OCPP 1.6J en Wireshark: (a) sesión legítima (\texttt{\_is\_attack: false}) con asignación normal de potencia; (b) explotación en E2 (\texttt{\_is\_attack: true}) mostrando inyección de potencia ($44.9\text{ kW}$), salto anómalo de SoC ($99\%$ a $5\%$) y repetición de \texttt{UniqueId} aceptados por el CSMS.}
+\IfFileExists{../Data/wireshark_trama_ocpp.png}{%
+    \includegraphics[width=\columnwidth, height=3.8cm]{../Data/wireshark_trama_ocpp.png}\\[3pt]
+    {\footnotesize (a) Sesión legítima (\texttt{\_is\_attack: false}) con asignación normal.}\\[8pt]
+}{%
+    \fbox{\parbox{0.95\columnwidth}{\centering\vspace{0.8cm}\textbf{(a) Trama OCPP 1.6J Legítima}\\Falta \texttt{Proyecto/Data/wireshark\_trama\_ocpp.png}\vspace{0.8cm}}}\\[8pt]
+}%
+\IfFileExists{../Data/wireshark_ataque_ocpp.png}{%
+    \includegraphics[width=\columnwidth, height=3.8cm]{../Data/wireshark_ataque_ocpp.png}\\[3pt]
+    {\footnotesize (b) Explotación en E2 (\texttt{\_is\_attack: true}) con inyección y repetición.}\\[2pt]
+}{%
+    \fbox{\parbox{0.95\columnwidth}{\centering\vspace{0.8cm}\textbf{(b) Inyección y Replay en Escenario E2}\\Falta \texttt{Proyecto/Data/wireshark\_ataque\_ocpp.png}\vspace{0.8cm}}}%
+}%
+\caption{Disección del flujo WebSocket/OCPP 1.6J en Wireshark: (a) sesión legítima con asignación normal de potencia; (b) explotación en E2 mostrando inyección de potencia ($44.9\text{ kW}$), salto anómalo de SoC ($99\%$ a $5\%$) y repetición de \texttt{UniqueId} aceptados por el CSMS.}
 \label{fig:wireshark}
-\end{figure*}
+\end{figure}
 
 \FloatBarrier
 \section{Conclusiones y Recomendaciones}

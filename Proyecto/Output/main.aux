@@ -2,6 +2,9 @@
 \providecommand \babel@aux [2]{\global \let \babel@toc \@gobbletwo }
 \@nameuse{bbl@beforestart}
 \catcode `"\active 
+\catcode `<\active 
+\catcode `>\active 
+\@nameuse{es@quoting}
 \citation{garofalaki2022}
 \citation{garofalaki2022,alcaraz2023}
 \citation{alcaraz2017}
@@ -68,21 +71,21 @@
 \@writefile{toc}{\contentsline {subsubsection}{\numberline {\mbox  {III-E}6}Fase 6 -- Despliegue y Documentación}{6}{}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {IV}Desarrollo e Implementación}{6}{}\protected@file@percent }
 \newlabel{sec:desarrollo}{{IV}{6}{}{section.4}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Flujo de mensajes entre EVSE, Atacante, Middleware Proxy + IA y CSMS.}}{6}{}\protected@file@percent }
+\newlabel{fig:secuencia}{{3}{6}{}{figure.3}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-A}}Arquitectura de Software y Flujo de Tramas}{6}{}\protected@file@percent }
 \newlabel{lst:ocpp_frame}{{1}{6}{}{lstlisting.1}{}}
 \@writefile{lol}{\contentsline {lstlisting}{\numberline {1}Estructura de trama OCPP 1.6J \texttt  {MeterValues} transmitida sobre WebSocket.}{6}{}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-B}}Mecanismos Implementados de Ataque y Defensa}{6}{}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {III}{\ignorespaces Matriz de vulnerabilidades identificadas en el protocolo OCPP 1.6J.}}{7}{}\protected@file@percent }
-\newlabel{tab:vulnerabilidades}{{III}{7}{}{table.3}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {V}Resultados Experimentales y Discusión}{7}{}\protected@file@percent }
 \newlabel{sec:resultados}{{V}{7}{}{section.5}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {V-A}}Impacto en las Decisiones del Agente de IA (E1--E3)}{7}{}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {V-B}}Desempeño de Detección y Sobrecarga del Middleware}{7}{}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {III}{\ignorespaces Métricas de error predictivo de la IA y eventos de sobrecarga en los escenarios experimentales E1, E2 y E3.}}{7}{}\protected@file@percent }
+\newlabel{tab:resultados_ia}{{III}{7}{}{table.3}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {IV}{\ignorespaces Desempeño de detección y latencia del middleware de validación en el escenario E3.}}{7}{}\protected@file@percent }
+\newlabel{tab:resultados_mw}{{IV}{7}{}{table.4}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {V-C}}Inspección de Tráfico en Wireshark}{7}{}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {IV}{\ignorespaces Métricas de error predictivo de la IA y eventos de sobrecarga en los escenarios experimentales E1, E2 y E3.}}{7}{}\protected@file@percent }
-\newlabel{tab:resultados_ia}{{IV}{7}{}{table.4}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {V}{\ignorespaces Desempeño de detección y latencia del middleware de validación en el escenario E3.}}{7}{}\protected@file@percent }
-\newlabel{tab:resultados_mw}{{V}{7}{}{table.5}{}}
 \bibcite{alcaraz2017}{1}
 \bibcite{garofalaki2022}{2}
 \bibcite{alcaraz2023}{3}
@@ -91,14 +94,14 @@
 \bibcite{rahman2026}{6}
 \bibcite{elmo2023}{7}
 \bibcite{kohler2023}{8}
-\bibcite{nist2026}{9}
-\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Comparación cuantitativa del error de predicción (MAE y RMSE) del agente de IA y eventos de sobrecarga eléctrica en los escenarios E1, E2 y E3.}}{8}{}\protected@file@percent }
-\newlabel{fig:comparativa}{{3}{8}{}{figure.3}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Disección del flujo WebSocket/OCPP 1.6J en Wireshark: (a) sesión legítima (\texttt  {\_is\_attack: false}) con asignación normal de potencia; (b) explotación en E2 (\texttt  {\_is\_attack: true}) mostrando inyección de potencia ($44.9\text  { kW}$), salto anómalo de SoC ($99\%$ a $5\%$) y repetición de \texttt  {UniqueId} aceptados por el CSMS.}}{8}{}\protected@file@percent }
-\newlabel{fig:wireshark}{{4}{8}{}{figure.4}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Comparación cuantitativa del error de predicción (MAE y RMSE) del agente de IA y eventos de sobrecarga eléctrica en los escenarios E1, E2 y E3.}}{8}{}\protected@file@percent }
+\newlabel{fig:comparativa}{{4}{8}{}{figure.4}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Disección del flujo WebSocket/OCPP 1.6J en Wireshark: (a) sesión legítima con asignación normal de potencia; (b) explotación en E2 mostrando inyección de potencia ($44.9\text  { kW}$), salto anómalo de SoC ($99\%$ a $5\%$) y repetición de \texttt  {UniqueId} aceptados por el CSMS.}}{8}{}\protected@file@percent }
+\newlabel{fig:wireshark}{{5}{8}{}{figure.5}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {VI}Conclusiones y Recomendaciones}{8}{}\protected@file@percent }
 \newlabel{sec:conclusiones}{{VI}{8}{}{section.6}{}}
 \@writefile{toc}{\contentsline {section}{Referencias}{8}{}\protected@file@percent }
+\bibcite{nist2026}{9}
 \bibcite{chapman2000}{10}
 \bibcite{rfc6455}{11}
 \gdef \@abspage@last{9}
